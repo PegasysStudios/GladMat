@@ -5,21 +5,21 @@ import { AppError } from "@/lib/server/errors";
 const IMAGE_QUALITIES = ["low", "medium", "high", "xhigh", "max", "auto"] as const;
 export type ImageQuality = (typeof IMAGE_QUALITIES)[number];
 
-function required(name: string) {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new AppError(
-      "CONFIGURATION_REQUIRED",
-      `AdMat needs ${name} configured on the server before this action can run.`,
-      503,
-    );
+function required(name: string, ...aliases: string[]) {
+  for (const key of [name, ...aliases]) {
+    const value = process.env[key]?.trim();
+    if (value) return value;
   }
-  return value;
+  throw new AppError(
+    "CONFIGURATION_REQUIRED",
+    `AdMat needs ${name} configured on the server before this action can run.`,
+    503,
+  );
 }
 
 export function getSupabaseConfig() {
   return {
-    url: required("NEXT_PUBLIC_SUPABASE_URL"),
+    url: required("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
     serviceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
     bucket: required("SUPABASE_STORAGE_BUCKET"),
   };

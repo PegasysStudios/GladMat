@@ -114,15 +114,14 @@ OPENAI_IMAGE_MODEL=gpt-image-2.5-sunburst
 OPENAI_IMAGE_QUALITY=high
 ENABLE_IMAGE_VALIDATION=false
 
-NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_publishable_or_anon_key
+SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_secret
 SUPABASE_STORAGE_BUCKET=ad-mats
 
 ADMAT_SESSION_SECRET=a_random_secret_of_at_least_32_characters
 ```
 
-`OPENAI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `ADMAT_SESSION_SECRET` are server-only. Never rename them with a `NEXT_PUBLIC_` prefix. The Supabase project URL and publishable/anon key are designed for browser use; uploads still require a short-lived, single-path signed upload token created by the server.
+`OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `ADMAT_SESSION_SECRET` are server-only. Do not prefix them with `NEXT_PUBLIC_`. Source uploads still go directly to private storage using a short-lived, single-path signed upload URL created by the server, so the browser never needs a public Supabase URL or anon key. `NEXT_PUBLIC_SUPABASE_URL` is still accepted as a local fallback if `SUPABASE_URL` is unset.
 
 Set `ENABLE_IMAGE_VALIDATION=true` to enable the optional post-generation vision check. A severe failure triggers at most one additional paid image-generation attempt. If that correction still fails quality review, the final image remains downloadable but is marked `Needs review`.
 
@@ -133,12 +132,11 @@ Set `ENABLE_IMAGE_VALIDATION=true` to enable the optional post-generation vision
 3. Keep the bucket **private**.
 4. Set the bucket file-size limit to at least 20 MB.
 5. If desired, restrict allowed MIME types to `image/png`, `image/jpeg`, `image/webp`, `application/json`, and `application/zip`. The application also validates source types itself.
-6. In **Project Settings → API**, copy the project URL to `NEXT_PUBLIC_SUPABASE_URL`.
-7. Copy the publishable/anon key to `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-8. Copy the service-role secret to `SUPABASE_SERVICE_ROLE_KEY`. Keep it server-side only.
-9. Set `SUPABASE_STORAGE_BUCKET=ad-mats`.
+6. In **Project Settings → API**, copy the project URL to `SUPABASE_URL`.
+7. Copy the service-role secret to `SUPABASE_SERVICE_ROLE_KEY`. Keep it server-side only.
+8. Set `SUPABASE_STORAGE_BUCKET=ad-mats`. The publishable/anon key is not required.
 
-No custom bucket policy is required for the server-side service-role operations. The browser never receives the service-role key. Its source upload is authorized only by the server-created signed upload token. Do not make the bucket public.
+No custom bucket policy is required for the server-side service-role operations. The browser never receives the service-role key. Its source upload is authorized only by the server-created signed upload URL. Do not make the bucket public.
 
 ## OpenAI setup
 
@@ -166,7 +164,7 @@ Tests cover the required presets, aspect classification, model-canvas normalizat
 
 1. Import this directory as a new Vercel project using the Next.js framework preset.
 2. Use Node.js 20 or later.
-3. Add every variable from `.env.local` under **Project Settings → Environment Variables** for Production and any Preview environments that should work.
+3. Add every variable from `.env.local` under **Project Settings → Environment Variables** for Production and any Preview environments that should work. Use `SUPABASE_URL` rather than any `NEXT_PUBLIC_` name.
 4. Generate a separate strong `ADMAT_SESSION_SECRET` for production.
 5. Ensure the plan/project permits the generation route's declared maximum duration of 300 seconds; image generation can take several minutes.
 6. Prefer a Vercel region near the Supabase project to reduce private-asset transfer latency.

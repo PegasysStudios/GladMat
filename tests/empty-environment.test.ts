@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/upload/route";
 
 const KEYS = [
+  "SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
   "SUPABASE_STORAGE_BUCKET",
@@ -46,6 +47,6 @@ describe("empty environment behavior", () => {
     const payload = await response.json();
     expect(response.status).toBe(503);
     expect(payload.error.code).toBe("CONFIGURATION_REQUIRED");
-    expect(payload.error.message).toContain("NEXT_PUBLIC_SUPABASE_URL");
+    expect(payload.error.message).toContain("SUPABASE_URL");
   });
 });

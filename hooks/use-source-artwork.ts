@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postJson } from "@/lib/api-client";
 import type { SourceAnalysis } from "@/lib/schemas";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { uploadFileToSignedUrl } from "@/lib/signed-upload";
 import type { SourceAsset, UploadStatus } from "@/lib/types";
 
 const ACCEPTED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -13,8 +13,7 @@ type PreparedUpload = {
   sessionId: string;
   sessionToken: string;
   originalPath: string;
-  uploadToken: string;
-  bucket: string;
+  signedUrl: string;
 };
 
 type AnalysisResponse = { analysis: SourceAnalysis };
@@ -92,15 +91,7 @@ export function useSourceArtwork(onReplace?: () => void) {
       });
       if (version !== versionRef.current) return;
 
-      const { error: uploadError } = await getSupabaseBrowserClient()
-        .storage
-        .from(prepared.bucket)
-        .uploadToSignedUrl(prepared.originalPath, prepared.uploadToken, file, {
-          contentType: file.type,
-          cacheControl: "3600",
-          upsert: false,
-        });
-      if (uploadError) throw new Error("The artwork could not be uploaded to private storage. Please try again.");
+      await uploadFileToSignedUrl(prepared.signedUrl, file);
       if (version !== versionRef.current) return;
 
       const completed = await postJson<SourceAsset>("/api/upload", {

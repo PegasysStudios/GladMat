@@ -17,7 +17,6 @@ import {
   normalizedSourcePath,
   originalSourcePath,
 } from "@/lib/storage-paths";
-import { getSupabaseConfig } from "@/lib/server/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,8 +44,7 @@ export async function POST(request: NextRequest) {
           sessionId,
           sessionToken: mintSessionToken(sessionId),
           originalPath,
-          uploadToken: signed.token,
-          bucket: getSupabaseConfig().bucket,
+          signedUrl: signed.signedUrl,
         },
         { headers: { "Cache-Control": "no-store" } },
       );
