@@ -29,14 +29,7 @@ describe("ad size presets", () => {
     ]);
   });
 
-  it("selects the most-used social sizes by default", () => {
-    expect([...DEFAULT_SELECTED_SIZE_IDS].slice(0, 3)).toEqual([
-      "feed-portrait",
-      "feed-square",
-      "landscape",
-    ]);
-    expect(DEFAULT_SELECTED_SIZE_IDS.has("feed-portrait")).toBe(true);
-    expect(DEFAULT_SELECTED_SIZE_IDS.has("feed-square")).toBe(true);
-    expect(DEFAULT_SELECTED_SIZE_IDS.has("landscape")).toBe(true);
+  it("starts with no output sizes selected", () => {
+    expect(DEFAULT_SELECTED_SIZE_IDS.size).toBe(0);
   });
 });

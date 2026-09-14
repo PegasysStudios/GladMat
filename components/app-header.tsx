@@ -14,14 +14,14 @@ export function AppHeader() {
     <header className="flex w-full min-w-0 items-start justify-between gap-2 sm:items-center sm:gap-3">
       <div className="w-0 min-w-0 flex-1 overflow-hidden">
         <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
-          <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--ink)]">AdMat</h1>
+          <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--ink)]">GladMat</h1>
           <p className="text-[13px] leading-snug text-[var(--ink-muted)] sm:text-[14px]">
             Turn one campaign asset into every ad size you need.
           </p>
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+      {/* <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         <Dialog>
           <DialogTrigger asChild>
             <button
@@ -85,8 +85,8 @@ export function AppHeader() {
             <span className="block text-[12px] font-semibold text-[var(--ink)] sm:text-[13px]">Jordan</span>
             <span className="block text-[11px] text-[var(--ink-muted)] sm:text-[12px]">Marketing</span>
           </span>
-        </div>
-      </div>
+        </div> 
+      </div> */}
     </header>
   );
 }

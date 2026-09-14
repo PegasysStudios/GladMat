@@ -23,14 +23,4 @@ export const AD_SIZE_PRESETS = [
   { id: "small-rectangle", name: "Small rectangle", width: 180, height: 150 },
 ] as const satisfies readonly AdSize[];
 
-export const DEFAULT_SELECTED_SIZE_IDS = new Set([
-  "feed-portrait",
-  "feed-square",
-  "landscape",
-  "medium-rectangle",
-  "leaderboard",
-  "mobile",
-  "half-page",
-  "square",
-  "billboard",
-]);
+export const DEFAULT_SELECTED_SIZE_IDS = new Set<string>();
