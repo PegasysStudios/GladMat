@@ -9,7 +9,7 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "AdMat",
+  title: "GladMat",
   description: "Turn one campaign asset into every ad size you need.",
   icons: { icon: "/favicon.svg" },
   robots: { index: false, follow: false },

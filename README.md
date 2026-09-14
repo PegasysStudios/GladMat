@@ -1,6 +1,6 @@
-# AdMat
+# GladMat
 
-AdMat is an internal creative-production tool that turns one event or show flyer into multiple independently recomposed advertising formats. It analyzes the source once, preserves confirmed copy and campaign identity, then makes one reference-image edit request for every selected size.
+GldMat is an internal creative-production tool that turns one event or show flyer into multiple independently recomposed advertising formats. It analyzes the source once, preserves confirmed copy and campaign identity, then makes one reference-image edit request for every selected size.
 
 The application is deliberately not a generic image generator. Every output uses the original artwork as its authoritative visual reference, a structured design analysis, format-specific composition guidance, and exact pixel post-processing.
 
