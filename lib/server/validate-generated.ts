@@ -5,7 +5,7 @@ import { buildValidationPrompt } from "@/lib/prompts/validate-output";
 import { QualityValidationSchema, type QualityValidation } from "@/lib/schemas";
 import { getOpenAIConfig } from "@/lib/server/config";
 import { AppError } from "@/lib/server/errors";
-import { getOpenAIClient } from "@/lib/server/openai";
+import { parseAiResponse } from "@/lib/server/jobs/ai";
 
 export type ValidationReferenceImages = {
   master?: Buffer;
@@ -44,7 +44,7 @@ export async function validateGeneratedAsset(
         ]
       : []),
   ];
-  const response = await getOpenAIClient().responses.parse(
+  const response = await parseAiResponse(
     {
       model: analysisModel,
       store: false,

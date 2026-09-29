@@ -2,9 +2,9 @@ import type { StudioDocument } from "@/lib/studio";
 
 // Independent of the stored decomposition version: API changes must not erase
 // paid selections or an existing editable document.
-export const STUDIO_API_VERSION = 1;
+export const STUDIO_API_VERSION = 2;
 export type StudioStage = "analyzing" | "extracting" | "background" | "composition";
-export type StudioRecovery = "retry-preparation" | "retry-loading" | "reload" | "reopen" | "regenerate" | "check-configuration";
+export type StudioRecovery = "retry-preparation" | "retry-loading" | "new-attempt" | "reload" | "reopen" | "regenerate" | "check-configuration";
 export type StudioErrorDetails = { stage?: StudioStage; recovery?: StudioRecovery; layerIds?: string[] };
 export type StudioFailure = StudioErrorDetails & {
   code: string;
@@ -41,6 +41,7 @@ export function failStudioPreparation(current: StudioPreparationState, failure: 
 }
 
 export function studioRecoveryLabel(recovery?: StudioRecovery) {
+  if (recovery === "new-attempt") return "Start new attempt";
   if (recovery === "reload") return "Reload Studio";
   if (recovery === "reopen" || recovery === "regenerate" || recovery === "check-configuration") return "Back to GladMat";
   if (recovery === "retry-loading") return "Retry loading canvas";

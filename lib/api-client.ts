@@ -1,4 +1,6 @@
 "use client";
+import { followAiJob, jobRequest, rememberAiJob } from "@/lib/ai-job-client";
+import { isAiJobTicket } from "@/lib/ai-jobs";
 
 import type { GenerationStatus } from "@/lib/types";
 import type { StudioDocument } from "@/lib/studio";
@@ -44,6 +46,14 @@ async function readError(response: Response) {
 }
 
 export async function postJson<T>(url: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  if (url === "/api/analyze") {
+    const ticket = await jobRequest<unknown>("/api/jobs/start", { apiVersion: 1, kind: "analysis", input: body }, signal);
+    if (isAiJobTicket(ticket)) {
+      const source = body as { sessionId: string };
+      rememberAiJob(`analysis:${source.sessionId}`, ticket);
+      return followAiJob<T>(ticket, undefined, signal);
+    }
+  }
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -157,6 +167,16 @@ export async function streamGeneration(
   onEvent: (event: GenerationEvent) => void,
   signal?: AbortSignal,
 ) {
+  const ticket = await jobRequest<unknown>("/api/jobs/start", { apiVersion: 1, kind: "generation", input: payload }, signal);
+  if (isAiJobTicket(ticket)) {
+    const input = payload as { requestId: string };
+    rememberAiJob(`generation:${input.requestId}`, ticket);
+    const result = await followAiJob<{ asset: Extract<GenerationEvent, { type: "complete" }>["asset"] }>(ticket, (snapshot) => {
+      onEvent({ type: "status", status: snapshot.phase === "processing" ? "processing" : "generating", attempt: snapshot.attempt });
+    }, signal);
+    onEvent({ type: "complete", asset: result.asset });
+    return;
+  }
   const response = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

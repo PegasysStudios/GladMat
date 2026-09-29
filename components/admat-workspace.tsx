@@ -3,6 +3,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Sparkles, X } from "lucide-react";
+import { BackgroundJobs } from "@/components/background-jobs";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { GenerationResults } from "@/components/generation-results";
@@ -247,6 +248,27 @@ export function AdMatWorkspace() {
   return (
     <div className="min-h-screen overflow-x-clip bg-[var(--canvas)]">
       <AppHeader savedCount={savedAdMats.items.length} onOpenSaved={() => setSavedLibraryOpen(true)} />
+      <BackgroundJobs onReconnect={async (scope) => {
+        // Restoring artwork resets the current generation queue. Keep its
+        // durable-job contexts long enough to reconnect those results.
+        const pendingGenerations = scope.startsWith("generation:")
+          ? localStorage.getItem("gladmat.pending-generation-contexts.v1") : null;
+        const sessionId = scope.startsWith("analysis:") ? scope.slice("analysis:".length) : (() => {
+          const requestId = scope.slice("generation:".length);
+          try {
+            const saved = JSON.parse(localStorage.getItem("gladmat.pending-generation-contexts.v1") ?? "[]") as Array<{ job: GenerationJob; context: { source: { sessionId: string } } }>;
+            return saved.find((item) => item.job.requestId === requestId)?.context.source.sessionId;
+          } catch { return undefined; }
+        })();
+        const artwork = source.savedArtwork.find((item) => item.source.sessionId === sessionId);
+        if (!artwork) { setSavedLibraryOpen(true); setNotice("Open the saved artwork associated with this job to reconnect its results."); return; }
+        await source.restore(artwork);
+        if (scope.startsWith("generation:") && pendingGenerations) {
+          localStorage.setItem("gladmat.pending-generation-contexts.v1", pendingGenerations);
+          generation.restorePending();
+          setResultsView(true);
+        }
+      }} />
       <main className="mx-auto flex min-h-[calc(100dvh-57px)] w-full max-w-[1540px] flex-col overflow-x-hidden px-3 py-3 sm:px-4 sm:py-4 2xl:pr-[30px]">
 
         {notice ? (

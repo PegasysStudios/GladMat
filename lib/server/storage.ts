@@ -1,4 +1,5 @@
 import "server-only";
+import { guardJobWrite } from "@/lib/server/jobs/context";
 
 import { getSupabaseConfig } from "@/lib/server/config";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -74,6 +75,7 @@ export async function uploadBuffer(
   upsert = true,
   cacheControl = "3600",
 ) {
+  await guardJobWrite();
   return storageRequest("upload", path, async () => {
     const { error } = await bucket().upload(path, body, { contentType, cacheControl, upsert });
     if (error) throw error;

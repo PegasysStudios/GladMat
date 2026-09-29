@@ -1,3 +1,5 @@
+import { durableJobsEnabled } from "@/lib/server/jobs/store";
+import { AppError as DurableRouteError } from "@/lib/server/errors";
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { StudioPreparationRequestSchema } from "@/lib/studio";
@@ -18,6 +20,7 @@ export async function POST(request: NextRequest) {
   try {
     assertSameOrigin(request);
     enforceRateLimit(request, 20, "studio-background");
+    if (durableJobsEnabled()) throw new DurableRouteError("STUDIO_CLIENT_OUTDATED", "Studio has been updated. Refresh this page to resume durable preparation.", 409, false, { stage: "analyzing", recovery: "reload" });
     input = await parseStudioRequest(request, StudioPreparationRequestSchema);
   } catch (error) {
     logServerError(error, { route: "/api/studio/background", requestId });

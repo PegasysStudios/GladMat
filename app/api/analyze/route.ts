@@ -1,3 +1,4 @@
+import { durableJobsEnabled } from "@/lib/server/jobs/store";
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { AnalyzeRequestSchema } from "@/lib/schemas";
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
     if (!isExpectedSourcePath(input.sourcePath, input.sessionId)) {
       throw new AppError("INVALID_REQUEST", "The source artwork path is invalid.", 400);
     }
+    if (durableJobsEnabled()) throw new AppError("STUDIO_CLIENT_OUTDATED", "GladMat has been updated. Refresh this page to resume background analysis.", 409);
     const analysis = await analyzeSourceArtwork(input.sessionId, input.sourcePath, request.signal);
     return NextResponse.json(
       { analysis },

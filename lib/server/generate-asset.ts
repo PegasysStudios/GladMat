@@ -1,3 +1,4 @@
+import { rethrowJobControl } from "@/lib/server/jobs/context";
 import "server-only";
 
 import { readFile } from "node:fs/promises";
@@ -22,7 +23,7 @@ import { getOpenAIConfig } from "@/lib/server/config";
 import { AppError, logServerError, normalizeError } from "@/lib/server/errors";
 import { expandGeneratedBleed, renderFineTunedImage, resolveGeneratedAssetPath } from "@/lib/server/fine-tune";
 import { generateNarrowAdmat } from "@/lib/server/narrow-admat-generation";
-import { getOpenAIClient } from "@/lib/server/openai";
+import { editAiImage } from "@/lib/server/jobs/ai";
 import {
   assetExists,
   createSignedPreview,
@@ -91,6 +92,7 @@ export async function generateAsset(
         buffer: await readFile(selectedLayoutReference.path),
       };
     } catch (error) {
+    rethrowJobControl(error);
       logServerError(error, {
         stage: "layout-reference-load",
         target: `${input.width}x${input.height}`,
@@ -172,7 +174,7 @@ export async function generateAsset(
         );
       }
 
-      const response = await getOpenAIClient().images.edit(
+      const response = await editAiImage(
         {
           model: config.imageModel,
           image:
@@ -261,6 +263,7 @@ export async function generateAsset(
         validationIssues = validation.issues;
         break;
       } catch (error) {
+    rethrowJobControl(error);
         logServerError(error, {
           stage: "quality-validation",
           sessionId: input.sessionId,
@@ -272,6 +275,7 @@ export async function generateAsset(
         break;
       }
       } catch (error) {
+    rethrowJobControl(error);
         if (attempt === 2 && firstReviewCandidate) {
           selected = firstReviewCandidate;
           selectedBleed = firstReviewBleed;

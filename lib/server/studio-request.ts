@@ -20,7 +20,8 @@ export async function parseStudioRequest<T>(request: NextRequest, schema: ZodTyp
 
 export function studioFailure(error: unknown, stage: StudioStage, layerIds?: string[]) {
   const normalized = normalizeError(error, new AppError("STUDIO_FAILED", "Studio could not finish this step. Retry preparation.", 502, true));
-  const recovery = normalized.details.recovery ?? (normalized.code === "ASSET_NOT_FOUND" ? "regenerate"
+  const recovery = normalized.details.recovery ?? (normalized.code === "AI_SUBMISSION_UNKNOWN" ? "new-attempt"
+    : normalized.code === "ASSET_NOT_FOUND" ? "regenerate"
     : normalized.code === "UNAUTHORIZED_SESSION" || normalized.code === "INVALID_REQUEST"
       || (normalized.code === "GENERATION_FAILED" && !normalized.retryable) ? "reopen"
       : normalized.code === "CONFIGURATION_REQUIRED" || (!normalized.retryable && normalized.code === "OPENAI_FAILED") ? "check-configuration"

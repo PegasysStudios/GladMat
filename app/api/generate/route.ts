@@ -1,3 +1,4 @@
+import { durableJobsEnabled } from "@/lib/server/jobs/store";
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { GenerateRequestSchema } from "@/lib/schemas";
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
     if (!isExpectedSourcePath(input.sourcePath, input.sessionId)) {
       throw new AppError("INVALID_REQUEST", "The source artwork path is invalid.", 400);
     }
+    if (durableJobsEnabled()) throw new AppError("STUDIO_CLIENT_OUTDATED", "GladMat has been updated. Refresh this page to use background generation.", 409);
   } catch (error) {
     logServerError(error, { route: "/api/generate", correlationId });
     return errorResponse(error, correlationId);
