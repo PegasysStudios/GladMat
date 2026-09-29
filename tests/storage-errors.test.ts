@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StorageApiError, StorageUnknownError } from "@supabase/storage-js";
-import { assetExists, downloadBuffer, uploadBuffer } from "@/lib/server/storage";
+import { assetExists, createSignedUpload, downloadBuffer, uploadBuffer } from "@/lib/server/storage";
 
-const { upload, download, exists } = vi.hoisted(() => ({
-  upload: vi.fn(), download: vi.fn(), exists: vi.fn(),
+const { upload, download, exists, createSignedUploadUrl } = vi.hoisted(() => ({
+  upload: vi.fn(), download: vi.fn(), exists: vi.fn(), createSignedUploadUrl: vi.fn(),
 }));
 vi.mock("@/lib/server/supabase", () => ({
-  getSupabaseAdmin: () => ({ storage: { from: () => ({ upload, download, exists }) } }),
+  getSupabaseAdmin: () => ({ storage: { from: () => ({ upload, download, exists, createSignedUploadUrl }) } }),
 }));
 vi.mock("@/lib/server/config", () => ({ getSupabaseConfig: () => ({ bucket: "ad-mats" }) }));
 
@@ -20,6 +20,26 @@ function brokenSession() {
 }
 
 describe("storage failure diagnostics", () => {
+  it("classifies Supabase's outer 400 and storage 403 as a credential error", async () => {
+    createSignedUploadUrl.mockResolvedValue({ data: null,
+      error: new StorageApiError("Invalid Compact JWS", 400, "403", "storage", "AccessDenied") });
+    await expect(createSignedUpload("sources/session/original.png")).rejects.toMatchObject({
+      code: "STORAGE_FAILED", status: 503, retryable: false,
+      message: "Private storage rejected the server credentials. Check the storage configuration on the server.",
+      details: { recovery: "check-configuration", storageStatus: 403, storageCode: "AccessDenied" },
+    });
+  });
+
+  it("classifies Supabase's outer 400 and storage 404 as a missing bucket", async () => {
+    createSignedUploadUrl.mockResolvedValue({ data: null,
+      error: new StorageApiError("The related resource does not exist", 400, "404", "storage", "InvalidRequest") });
+    await expect(createSignedUpload("sources/session/original.png")).rejects.toMatchObject({
+      code: "STORAGE_FAILED", status: 503, retryable: false,
+      message: "The configured private storage bucket was not found. Check SUPABASE_URL and SUPABASE_STORAGE_BUCKET.",
+      details: { recovery: "check-configuration", storageStatus: 404, storageCode: "InvalidRequest" },
+    });
+  });
+
   it("logs the underlying upload rejection without exposing it to the browser", async () => {
     upload.mockResolvedValue({ error: new StorageApiError("upstream rejection", 403, "403") });
     await expect(uploadBuffer("generated/session/result.png", Buffer.from("png"), "image/png"))

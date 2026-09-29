@@ -1,7 +1,6 @@
 import "server-only";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { Agent, fetch as undiciFetch } from "undici";
 import { getSupabaseConfig } from "@/lib/server/config";
 
 let client: SupabaseClient | undefined;
@@ -9,23 +8,10 @@ let client: SupabaseClient | undefined;
 export function getSupabaseAdmin() {
   if (!client) {
     const { url, serviceRoleKey } = getSupabaseConfig();
-    // Keep storage transfers off Node's shared HTTP/2 pool: a destroyed
-    // session can otherwise make every later upload fail until restart.
-    const dispatcher = new Agent({
-      allowH2: false,
-      headersTimeout: 60_000,
-      bodyTimeout: 60_000,
-    });
-    // Use the matching fetch implementation; Node releases can bundle a
-    // different dispatcher interface than the installed Undici version.
-    // Preserve Supabase's signal object. Combining it with AbortSignal.any can
-    // reject runtime-specific signal implementations before the request starts.
-    const storageFetch: typeof undiciFetch = (input, init) =>
-      undiciFetch(input, { ...init, dispatcher });
     client = createClient(url, serviceRoleKey, {
-      global: {
-        fetch: storageFetch as unknown as typeof fetch,
-      },
+      // Use the runtime's native fetch. Vercel manages its dispatcher and
+      // request signals; substituting a bundled Undici transport can behave
+      // differently from `next dev` inside a deployed function.
       auth: {
         autoRefreshToken: false,
         detectSessionInUrl: false,

@@ -5,7 +5,13 @@ import type { StudioDocument } from "@/lib/studio";
 export const STUDIO_API_VERSION = 2;
 export type StudioStage = "analyzing" | "extracting" | "background" | "composition";
 export type StudioRecovery = "retry-preparation" | "retry-loading" | "new-attempt" | "reload" | "reopen" | "regenerate" | "check-configuration";
-export type StudioErrorDetails = { stage?: StudioStage; recovery?: StudioRecovery; layerIds?: string[] };
+export type StudioErrorDetails = {
+  stage?: StudioStage;
+  recovery?: StudioRecovery;
+  layerIds?: string[];
+  storageStatus?: number;
+  storageCode?: string;
+};
 export type StudioFailure = StudioErrorDetails & {
   code: string;
   message: string;
