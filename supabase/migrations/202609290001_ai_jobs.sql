@@ -1,5 +1,5 @@
 -- Additive migration. Run once in the existing Supabase SQL editor before enabling jobs.
-create table public.ai_jobs (
+create table if not exists public.ai_jobs (
   id uuid primary key default gen_random_uuid(),
   kind text not null check (kind in ('analysis','generation','studio')),
   session_id uuid not null,
@@ -21,7 +21,7 @@ create table public.ai_jobs (
   updated_at timestamptz not null default now(),
   unique (session_id, kind, operation_key)
 );
-create table public.ai_job_steps (
+create table if not exists public.ai_job_steps (
   job_id uuid not null references public.ai_jobs(id) on delete cascade,
   step_key text not null,
   status text not null default 'requested' check (status in ('requested','submitting','polling','provider_complete','complete','error')),
@@ -42,7 +42,7 @@ grant all on public.ai_jobs, public.ai_job_steps to service_role;
 -- Generation concurrency is enforced across tabs/functions in a session.
 create or replace function public.claim_ai_job(p_job_id uuid, p_run_id text, p_revision integer)
 returns text language plpgsql security definer set search_path = public as $$
-declare j ai_jobs; active integer;
+declare j ai_jobs; active integer; active_limit integer;
 begin
   select * into j from ai_jobs where id = p_job_id;
   if not found then return 'stopped'; end if;
@@ -52,7 +52,8 @@ begin
   if j.run_id is not null and j.run_id <> p_run_id then return 'stopped'; end if;
   if j.status = 'queued' then
     select count(*) into active from ai_jobs where session_id = j.session_id and kind = j.kind and status = 'running';
-    if active >= case when j.kind = 'studio' then 1 else 2 end then return 'waiting'; end if;
+    active_limit := case when j.kind = 'studio' then 1 else 2 end;
+    if active >= active_limit then return 'waiting'; end if;
   end if;
   update ai_jobs set status = 'running', run_id = p_run_id, updated_at = now() where id = p_job_id;
   return 'claimed';
