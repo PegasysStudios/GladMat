@@ -218,7 +218,7 @@ Tests cover the required presets, aspect classification, model-canvas normalizat
 2. Use Node.js 20 or later.
 3. Add every variable from `.env.local` under **Project Settings → Environment Variables** for Production and any Preview environments that should work. Use `SUPABASE_URL` rather than any `NEXT_PUBLIC_` name.
 4. Generate a separate strong `ADMAT_SESSION_SECRET` for production.
-5. Ensure the plan/project permits the generation route's declared maximum duration of 800 seconds; narrow admat generation can require a background pass, composition, QA, and one repair.
+5. Generation and Studio routes declare a maximum duration of 300 seconds to fit Vercel Hobby's limit. Narrow admat generation can require a background pass, composition, QA, and one repair, all within that duration.
 6. Prefer a Vercel region near the Supabase project to reduce private-asset transfer latency.
 7. Enable Vercel Deployment Protection, an access gateway, or equivalent restrictions. This MVP intentionally has no in-app authentication, and its AI endpoints should not be left publicly available.
 8. Deploy. Vercel runs `npm run build` automatically.
