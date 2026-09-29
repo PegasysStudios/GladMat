@@ -5,6 +5,9 @@ import { ZodError } from "zod";
 import type { StudioErrorDetails } from "@/lib/studio-protocol";
 
 export type ErrorCode =
+  | "AI_SUBMISSION_UNKNOWN"
+  | "AI_RESPONSE_EXPIRED"
+  | "JOB_CANCELLED"
   | "INVALID_REQUEST"
   | "INVALID_FILE"
   | "FILE_TOO_LARGE"

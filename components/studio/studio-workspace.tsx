@@ -251,6 +251,7 @@ export function StudioWorkspace({ sessionId, assetId }: { sessionId: string; ass
         {studio.phase !== "ready" || !studio.document ? (
           <StudioPreparation
             preparation={studio.preparation}
+            onCancel={studio.durableJob ? () => { void studio.cancelPreparation(); } : undefined}
             failure={studio.failure}
             onRetry={() => {
               if (studio.failure?.recovery === "reload") window.location.reload();

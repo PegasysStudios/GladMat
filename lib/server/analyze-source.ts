@@ -5,7 +5,7 @@ import { ANALYZE_SOURCE_PROMPT } from "@/lib/prompts/analyze-source";
 import { SourceAnalysisSchema, type SourceAnalysis } from "@/lib/schemas";
 import { getOpenAIConfig } from "@/lib/server/config";
 import { AppError } from "@/lib/server/errors";
-import { getOpenAIClient } from "@/lib/server/openai";
+import { parseAiResponse } from "@/lib/server/jobs/ai";
 import { downloadBuffer, uploadBuffer } from "@/lib/server/storage";
 import { analysisPath } from "@/lib/storage-paths";
 
@@ -17,7 +17,7 @@ export async function analyzeSourceArtwork(
   const source = await downloadBuffer(sourcePath, "SOURCE_NOT_FOUND");
   const { analysisModel } = getOpenAIConfig();
 
-  const response = await getOpenAIClient().responses.parse(
+  const response = await parseAiResponse(
     {
       model: analysisModel,
       store: false,

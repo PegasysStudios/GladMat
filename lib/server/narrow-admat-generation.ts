@@ -1,3 +1,4 @@
+import { rethrowJobControl } from "@/lib/server/jobs/context";
 import "server-only";
 
 import sharp from "sharp";
@@ -15,7 +16,7 @@ import type { SourceAnalysis } from "@/lib/schemas";
 import { getOpenAIConfig } from "@/lib/server/config";
 import { AppError, logServerError } from "@/lib/server/errors";
 import { expandGeneratedBleed, renderFineTunedImage } from "@/lib/server/fine-tune";
-import { getOpenAIClient } from "@/lib/server/openai";
+import { editAiImage } from "@/lib/server/jobs/ai";
 import { assetExists, downloadBuffer, uploadBuffer } from "@/lib/server/storage";
 import { validateGeneratedAsset } from "@/lib/server/validate-generated";
 import { narrowAdmatBackgroundPath } from "@/lib/storage-paths";
@@ -155,6 +156,7 @@ async function loadOrGenerateBackground(
         plan.canvas.height,
       );
     } catch (error) {
+    rethrowJobControl(error);
       logServerError(error, {
         stage: "narrow-background-cache-read",
         sessionId: input.sessionId,
@@ -165,7 +167,7 @@ async function loadOrGenerateBackground(
 
   const prompt = buildNarrowAdmatBackgroundPrompt(analysis);
   assertPromptLength(prompt);
-  const response = await getOpenAIClient().images.edit(
+  const response = await editAiImage(
     {
       model: config.imageModel,
       image: await toFile(source, "master-campaign.png", { type: "image/png" }),
@@ -216,7 +218,7 @@ async function composeNarrowAdmat(
       ? [await toFile(layoutReference.buffer, layoutReference.reference.filename, { type: "image/png" })]
       : []),
   ];
-  const response = await getOpenAIClient().images.edit(
+  const response = await editAiImage(
     {
       model: config.imageModel,
       image: images,
@@ -323,6 +325,7 @@ export async function generateNarrowAdmat(
   try {
     firstValidation = await validate(firstRendered);
   } catch (error) {
+    rethrowJobControl(error);
     logServerError(error, {
       stage: "narrow-quality-validation",
       sessionId: input.sessionId,
@@ -353,6 +356,7 @@ export async function generateNarrowAdmat(
   try {
     secondRendered = await createCandidate(2, firstValidation.issues);
   } catch (error) {
+    rethrowJobControl(error);
     logServerError(error, {
       stage: "narrow-repair",
       sessionId: input.sessionId,
@@ -375,6 +379,7 @@ export async function generateNarrowAdmat(
   try {
     secondValidation = await validate(secondRendered);
   } catch (error) {
+    rethrowJobControl(error);
     logServerError(error, {
       stage: "narrow-quality-validation",
       sessionId: input.sessionId,

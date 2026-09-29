@@ -1,4 +1,6 @@
 "use client";
+import { cancelAiJob } from "@/lib/ai-job-client";
+import type { AiJobTicket } from "@/lib/ai-jobs";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiClientError, postImageBlob, putJson } from "@/lib/api-client";
@@ -19,6 +21,8 @@ import {
 type StudioPhase = "loading" | "preparing" | "ready" | "error";
 
 export function useStudioDocument(sessionId: string, assetId: string) {
+  const jobRef = useRef<AiJobTicket | null>(null);
+  const [durableJob, setDurableJob] = useState(false);
   const [launch, setLaunch] = useState<StudioLaunchContext | null>(null);
   const [document, setDocument] = useState<StudioDocument | null>(null);
   const [phase, setPhase] = useState<StudioPhase>("loading");
@@ -148,6 +152,8 @@ export function useStudioDocument(sessionId: string, assetId: string) {
         progress: (update) => setPreparation((current) => ({ ...current, ...update })),
         image: loadLayerImage,
       }, { signal: controller.signal,
+        newAttempt: previousFailure?.code === "AI_SUBMISSION_UNKNOWN",
+        job: (ticket) => { jobRef.current = ticket; setDurableJob(true); },
         repairLayerIds: previousFailure?.code === "STUDIO_SELECTION_INVALID" ? previousFailure.layerIds : undefined,
         repairOutputs: previousFailure?.code === "STUDIO_ARTIFACT_MISSING",
       });
@@ -277,7 +283,18 @@ export function useStudioDocument(sessionId: string, assetId: string) {
 
   const saveNow = useCallback(() => persistRevision(revisionRef.current), [persistRevision]);
 
+  const cancelPreparation = useCallback(async () => {
+    const ticket = jobRef.current;
+    if (!ticket) return;
+    await cancelAiJob(ticket);
+    controllerRef.current?.abort();
+    const cancelled: StudioFailure = { code: "JOB_CANCELLED", message: "Studio preparation was cancelled. Return to GladMat to start again.", retryable: false, stage: "analyzing", recovery: "reopen" };
+    failureRef.current = cancelled; setFailure(cancelled); setPhase("error");
+    setPreparation((current) => failStudioPreparation(current, cancelled));
+  }, []);
   return {
+    durableJob,
+    cancelPreparation,
     asset,
     document,
     error,

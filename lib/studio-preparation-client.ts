@@ -1,4 +1,6 @@
 "use client";
+import { followAiJob, jobRequest, rememberAiJob } from "@/lib/ai-job-client";
+import { isAiJobTicket } from "@/lib/ai-jobs";
 
 import { ApiClientError, postJson, streamStudioBackground } from "@/lib/api-client";
 import { mapWithConcurrency } from "@/lib/concurrency";
@@ -33,7 +35,7 @@ export async function prepareStudioCanvas(
     progress: (update: Partial<StudioPreparationState>) => void;
     image: (layerId: string, preparationId: string, signal: AbortSignal) => Promise<void>;
   },
-  options: { signal: AbortSignal; repairLayerIds?: string[]; repairOutputs?: boolean },
+  options: { signal: AbortSignal; newAttempt?: boolean; job?: (ticket: import("@/lib/ai-jobs").AiJobTicket) => void; repairLayerIds?: string[]; repairOutputs?: boolean },
 ) {
   const { signal } = options;
   let stage: StudioStage = "analyzing";
@@ -51,9 +53,28 @@ export async function prepareStudioCanvas(
   }
   try {
     progress({ ...INITIAL_STUDIO_PREPARATION, analyzing: "working" });
-    const loaded = await postJson<{ document: StudioDocument | null }>("/api/studio/document", access, signal);
+    const loaded = await postJson<{ document: StudioDocument | null; durable?: boolean }>("/api/studio/document", access, signal);
     active();
     let next = loaded.document ? checkedDocument(loaded.document) : null;
+    let durablePrepared = false;
+    if (loaded.durable && (!next?.preparationComplete || options.repairOutputs || options.repairLayerIds?.length)) {
+      const ticket = await jobRequest<unknown>("/api/studio/prepare", {
+        ...access, formatName: labels.formatName, sourceName: labels.sourceName,
+        ...(options.repairLayerIds?.length ? { repairLayerIds: options.repairLayerIds } : {}),
+        ...(options.repairOutputs ? { repairOutputs: true } : {}),
+        ...(options.newAttempt ? { newAttempt: true } : {}),
+      }, signal);
+      if (isAiJobTicket(ticket)) {
+        options.job?.(ticket);
+        rememberAiJob(`studio:${access.sessionId}:${access.asset.requestId}`, ticket);
+        const result = await followAiJob<{ document: StudioDocument }>(ticket, (snapshot) => {
+          if (snapshot.preparation) progress(snapshot.preparation);
+          if (["analyzing", "extracting", "background", "composition"].includes(snapshot.phase)) stage = snapshot.phase as StudioStage;
+        }, signal);
+        next = checkedDocument(result.document);
+        durablePrepared = true;
+      }
+    }
     if (!next) {
       // Callers can pass a full launch context despite the narrower TypeScript
       // type. Select the API fields explicitly so strict server validation
@@ -109,7 +130,7 @@ export async function prepareStudioCanvas(
       }
       progress({ extracting: "complete" });
     }
-    if (!next.preparationComplete || options.repairOutputs) {
+    if (!durablePrepared && (!next.preparationComplete || options.repairOutputs)) {
       stage = "background";
       progress({ background: "working" });
       next = checkedDocument(await streamStudioBackground(payload, (event) => {
