@@ -61,11 +61,12 @@ async function storageRequest<T>(
 }
 
 export async function createSignedUpload(path: string) {
-  const { data, error } = await bucket().createSignedUploadUrl(path, { upsert: false });
-  if (error || !data) {
-    throw new AppError("STORAGE_FAILED", "Could not prepare the private upload. Please try again.", 502, true);
-  }
-  return data;
+  return storageRequest("create-signed-upload", path, async () => {
+    const { data, error } = await bucket().createSignedUploadUrl(path, { upsert: false });
+    if (error) throw error;
+    if (!data) throw new Error("Private storage returned no signed upload and no error");
+    return data;
+  }, "Could not prepare the private upload. Please try again.");
 }
 
 export async function uploadBuffer(

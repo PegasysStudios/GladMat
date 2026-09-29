@@ -26,7 +26,11 @@ describe("Supabase storage transport", () => {
     await uploadBuffer("sources/session/source.png", body, "image/png");
     await uploadBuffer("generated/session/970x90/result.png", body, "image/png", false);
 
-    expect(Agent).toHaveBeenCalledExactlyOnceWith({ allowH2: false });
+    expect(Agent).toHaveBeenCalledExactlyOnceWith({
+      allowH2: false,
+      headersTimeout: 60_000,
+      bodyTimeout: 60_000,
+    });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(globalFetch).not.toHaveBeenCalled();
     const sourceRequest = fetchMock.mock.calls[0][1];
