@@ -11,12 +11,17 @@ export function getSupabaseAdmin() {
     const { url, serviceRoleKey } = getSupabaseConfig();
     // Keep storage transfers off Node's shared HTTP/2 pool: a destroyed
     // session can otherwise make every later upload fail until restart.
-    const dispatcher = new Agent({ allowH2: false });
+    const dispatcher = new Agent({
+      allowH2: false,
+      headersTimeout: 60_000,
+      bodyTimeout: 60_000,
+    });
     // Use the matching fetch implementation; Node releases can bundle a
     // different dispatcher interface than the installed Undici version.
+    // Preserve Supabase's signal object. Combining it with AbortSignal.any can
+    // reject runtime-specific signal implementations before the request starts.
     const storageFetch: typeof undiciFetch = (input, init) =>
-      undiciFetch(input, { ...init, dispatcher, signal: init?.signal
-        ? AbortSignal.any([init.signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000) });
+      undiciFetch(input, { ...init, dispatcher });
     client = createClient(url, serviceRoleKey, {
       global: {
         fetch: storageFetch as unknown as typeof fetch,
