@@ -7,6 +7,7 @@ import { DownloadZipRequestSchema } from "@/lib/schemas";
 import { buildZipManifest } from "@/lib/zip-manifest";
 import { AppError, errorResponse, logServerError } from "@/lib/server/errors";
 import { assertPngDimensions } from "@/lib/server/image-processing";
+import { resolveGeneratedAssetPath } from "@/lib/server/fine-tune";
 import { assertSameOrigin, enforceRateLimit, parseJson } from "@/lib/server/request";
 import { assertSessionToken } from "@/lib/server/session-token";
 import {
@@ -14,7 +15,7 @@ import {
   downloadBuffer,
   uploadBuffer,
 } from "@/lib/server/storage";
-import { archivePath, generatedAssetPath } from "@/lib/storage-paths";
+import { archivePath } from "@/lib/storage-paths";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     const files = await mapWithConcurrency(manifest, 3, async (entry) => {
       try {
-        const path = generatedAssetPath(
+        const path = await resolveGeneratedAssetPath(
           input.sessionId,
           entry.width,
           entry.height,

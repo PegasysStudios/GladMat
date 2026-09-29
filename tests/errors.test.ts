@@ -64,6 +64,15 @@ describe("server error logging", () => {
     vi.restoreAllMocks();
   });
 
+  it("preserves the browser's request reference separately from an upstream request ID", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    logServerError(openaiError(502, "upstream failed", { request_id: "provider-123" }), { requestId: "studio-456", stage: "composition" });
+    expect(String(spy.mock.calls[0][0])).toContain('"requestId":"studio-456"');
+    expect(String(spy.mock.calls[0][0])).toContain('"upstreamRequestId":"provider-123"');
+    logServerError(new Error("No upstream reference"), { requestId: "studio-789" });
+    expect(String(spy.mock.calls[1][0])).toContain('"requestId":"studio-789"');
+  });
+
   it("writes a single JSON line that includes the upstream message", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     logServerError(openaiError(400, "400 Unknown parameter: 'input_fidelity'.", { param: "input_fidelity" }), {

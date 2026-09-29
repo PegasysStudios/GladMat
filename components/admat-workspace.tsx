@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertCircle, Sparkles, X } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -8,23 +9,63 @@ import { GenerationResults } from "@/components/generation-results";
 import { Panel } from "@/components/panel";
 import { SizeSelector } from "@/components/size-selector";
 import { SourceUploader } from "@/components/source-uploader";
+import { SavedAdMatLibrary } from "@/components/saved-admat-library";
+import { SavedArtworkLibrary } from "@/components/saved-artwork-library";
 import { StepHeading } from "@/components/step-heading";
 import { postJson, triggerBrowserDownload } from "@/lib/api-client";
 import { AD_SIZE_PRESETS, DEFAULT_SELECTED_SIZE_IDS } from "@/lib/presets";
 import type { AdSize, GenerationJob } from "@/lib/types";
 import { useGenerationQueue } from "@/hooks/use-generation-queue";
 import { useSourceArtwork } from "@/hooks/use-source-artwork";
+import { useSavedAdMats } from "@/hooks/use-saved-admats";
 import { useAdMatWebMcp } from "@/hooks/use-admat-webmcp";
+import { storeStudioLaunchContext } from "@/lib/studio-access";
+import { savedAdMatId } from "@/lib/saved-admats";
 
 const INSTRUCTIONS_MAX = 500;
 
 export function AdMatWorkspace() {
+  const router = useRouter();
   const generation = useGenerationQueue();
+  const savedAdMats = useSavedAdMats();
   const source = useSourceArtwork(generation.reset);
   const [selectedIds, setSelectedIds] = useState(() => new Set(DEFAULT_SELECTED_SIZE_IDS));
   const [customSizes, setCustomSizes] = useState<AdSize[]>([]);
   const [additionalInstructions, setAdditionalInstructions] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [savedLibraryOpen, setSavedLibraryOpen] = useState(false);
+  const [artworkLibraryOpen, setArtworkLibraryOpen] = useState(false);
+  const [resultsView, setResultsView] = useState(false);
+  const [showRemainingSteps, setShowRemainingSteps] = useState(false);
+  const sourceCardRef = useRef<HTMLDivElement>(null);
+  const centeredCardRectRef = useRef<DOMRect | null>(null);
+  const hasSelectedArtwork = Boolean(source.localPreviewUrl || source.source);
+
+  useLayoutEffect(() => {
+    if (!hasSelectedArtwork || showRemainingSteps) return;
+
+    const card = sourceCardRef.current;
+    const start = centeredCardRectRef.current;
+    if (!card || !start || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setShowRemainingSteps(true);
+      return;
+    }
+
+    const end = card.getBoundingClientRect();
+    const animation = card.animate(
+      [
+        { transform: `translate(${start.left - end.left}px, ${start.top - end.top}px)` },
+        { transform: "translate(0, 0)" },
+      ],
+      { duration: 620, easing: "cubic-bezier(0.22, 1, 0.36, 1)", fill: "both" },
+    );
+    const revealSteps = () => setShowRemainingSteps(true);
+    animation.addEventListener("finish", revealSteps);
+    return () => {
+      animation.removeEventListener("finish", revealSteps);
+      animation.cancel();
+    };
+  }, [hasSelectedArtwork, showRemainingSteps]);
 
   const allSizes = useMemo<AdSize[]>(() => [...AD_SIZE_PRESETS, ...customSizes], [customSizes]);
   const selectedSizes = useMemo(
@@ -122,6 +163,22 @@ export function AdMatWorkspace() {
     }
   }
 
+  function openStudio(job: GenerationJob) {
+    if (!source.source || job.status !== "complete" || !job.assetToken) return;
+    try {
+      storeStudioLaunchContext(source.source.sessionId, job.requestId, {
+        assetToken: job.assetToken,
+        width: job.size.width,
+        height: job.size.height,
+        formatName: job.size.name,
+        sourceName: source.source.sourceName,
+      });
+      router.push(`/studio/${source.source.sessionId}/${job.requestId}`);
+    } catch {
+      setNotice("Studio could not be opened in this browser. Check that session storage is available.");
+    }
+  }
+
   const disabledReason = (() => {
     if (generationRunning) return "The current generation queue is still running.";
     if (source.status === "uploading") return "Finish uploading the source artwork first.";
@@ -189,11 +246,11 @@ export function AdMatWorkspace() {
 
   return (
     <div className="min-h-screen overflow-x-clip bg-[var(--canvas)]">
-      <div className="mx-auto w-full max-w-[1680px] overflow-x-hidden px-3 pb-10 pt-4 sm:px-6 sm:pt-5 lg:px-8">
-        <AppHeader />
+      <AppHeader savedCount={savedAdMats.items.length} onOpenSaved={() => setSavedLibraryOpen(true)} />
+      <main className="mx-auto flex min-h-[calc(100dvh-57px)] w-full max-w-[1540px] flex-col overflow-x-hidden px-3 py-3 sm:px-4 sm:py-4 2xl:pr-[30px]">
 
         {notice ? (
-          <div role="alert" className="mt-4 flex items-start justify-between gap-4 rounded-[12px] border border-[#fecaca] bg-[var(--danger-soft)] px-4 py-3 text-[13px] text-[var(--danger)]">
+          <div role="alert" className="mb-3 flex items-start justify-between gap-4 rounded-[10px] border border-[#fecaca] bg-[var(--danger-soft)] px-4 py-3 text-[13px] text-[var(--danger)]">
             <div className="flex gap-2">
               <AlertCircle aria-hidden="true" size={16} className="mt-0.5 shrink-0" />
               <p>{notice}</p>
@@ -204,8 +261,11 @@ export function AdMatWorkspace() {
           </div>
         ) : null}
 
-        <div className="mt-4 flex w-full min-w-0 flex-col gap-4 lg:mt-5 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6">
-          <div className="flex w-full min-w-0 flex-col gap-4">
+        <div className={resultsView ? "w-full min-w-0" : hasSelectedArtwork
+          ? "grid w-full min-w-0 grid-cols-1 items-stretch gap-3 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_360px] 2xl:grid-cols-[304px_minmax(0,1fr)_405px]"
+          : "flex w-full min-w-0 flex-1 items-center justify-center"
+        }>
+          <div ref={sourceCardRef} className={resultsView ? "hidden" : hasSelectedArtwork ? "min-w-0" : "w-full lg:w-[280px] 2xl:w-[304px]"}>
             <SourceUploader
               status={source.status}
               source={source.source}
@@ -214,11 +274,19 @@ export function AdMatWorkspace() {
               error={source.error}
               correctedText={source.correctedText}
               onCorrectedTextChange={source.setCorrectedText}
-              onFile={(file) => void source.upload(file)}
+              onFile={(file) => {
+                if (!hasSelectedArtwork) centeredCardRectRef.current = sourceCardRef.current?.getBoundingClientRect() ?? null;
+                void source.upload(file);
+              }}
               onRetryAnalysis={source.retryAnalysis}
+              savedArtworkCount={source.savedArtwork.length}
+              onOpenSavedArtwork={() => setArtworkLibraryOpen(true)}
+              storageError={source.storageError}
             />
+          </div>
 
-            <Panel>
+          {!resultsView && hasSelectedArtwork && showRemainingSteps && (
+            <Panel className="workspace-step-enter flex h-full min-h-[720px] flex-col xl:min-h-[calc(100vh-89px)]">
               <SizeSelector
                 selectedIds={selectedIds}
                 customSizes={customSizes}
@@ -236,8 +304,10 @@ export function AdMatWorkspace() {
                 }}
               />
             </Panel>
+          )}
 
-            <Panel>
+          {!resultsView && hasSelectedArtwork && showRemainingSteps && (
+            <Panel className="workspace-step-enter flex h-full min-h-[320px] flex-col lg:col-span-2 xl:col-span-1">
               <StepHeading
                 step={3}
                 title={(
@@ -248,52 +318,104 @@ export function AdMatWorkspace() {
                 )}
                 description="Tell us how to adapt your design for different formats."
               />
-              <div className="relative">
+              <div className="relative flex min-h-[220px] flex-1">
                 <label htmlFor="instructions" className="sr-only">Additional instructions, optional</label>
                 <textarea
                   id="instructions"
-                  rows={3}
+                  rows={8}
                   maxLength={INSTRUCTIONS_MAX}
                   value={additionalInstructions}
                   onChange={(event) => setAdditionalInstructions(event.target.value)}
                   placeholder="e.g. Keep the artist larger, emphasize the date, use a darker color palette..."
-                  className="min-h-[88px] w-full resize-y rounded-[12px] border border-[var(--line)] bg-white px-3.5 py-3 pr-16 text-[14px] placeholder:text-[#9ca3af] focus:border-[var(--accent)] focus:outline-none"
+                  className="min-h-[220px] w-full flex-1 resize-y rounded-[9px] border border-[var(--line)] bg-white px-3.5 py-3 pb-9 text-[13px] placeholder:text-[#9ca3af] focus:border-[var(--accent)] focus:outline-none"
                 />
                 <span className="pointer-events-none absolute bottom-3 right-3 text-[11px] tabular-nums text-[var(--ink-muted)]">
                   {additionalInstructions.length}/{INSTRUCTIONS_MAX}
                 </span>
               </div>
+              <Button
+                variant="primary"
+                disabled={!canGenerate}
+                title={disabledReason}
+                className="mt-3 h-[54px] min-h-[54px] w-full rounded-[9px] text-[16px] font-medium"
+                onClick={() => {
+                  if (!canGenerate) return;
+                  setNotice(null);
+                  generation.generateAll(selectedSizes, generationContext());
+                  setResultsView(true);
+                }}
+              >
+                <Sparkles aria-hidden="true" size={16} />
+                Generate {selectedSizes.length} {selectedSizes.length === 1 ? "asset" : "assets"}
+              </Button>
+              {generation.jobs.length ? (
+                <Button variant="secondary" className="mt-3 h-[54px] min-h-[54px] w-full rounded-[9px] text-[16px] font-medium" onClick={() => setResultsView(true)}>
+                  View generated assets
+                </Button>
+              ) : null}
             </Panel>
+          )}
 
-            <Button
-              variant="primary"
-              disabled={!canGenerate}
-              title={disabledReason}
-              className="h-12 min-h-12 w-full rounded-xl text-[15px]"
-              onClick={() => {
-                if (!canGenerate) return;
+          {resultsView && (
+            <GenerationResults
+              jobs={generation.jobs}
+              expanded
+              sourceName={source.source?.originalName}
+              onBack={() => setResultsView(false)}
+              className="workspace-step-enter min-h-[calc(100dvh-89px)]"
+              onDownload={downloadJob}
+              onDownloadAll={downloadAll}
+              onRegenerate={(job, instructions) => {
                 setNotice(null);
-                generation.generateAll(selectedSizes, generationContext());
+                generation.regenerate(job, instructions);
               }}
-            >
-              <Sparkles aria-hidden="true" size={16} />
-              Generate {selectedSizes.length} {selectedSizes.length === 1 ? "asset" : "assets"}
-            </Button>
-          </div>
-
-          <GenerationResults
-            jobs={generation.jobs}
-            className={generation.jobs.length ? undefined : "hidden lg:block"}
-            onDownload={downloadJob}
-            onDownloadAll={downloadAll}
-            onRegenerate={(job) => {
-              setNotice(null);
-              generation.regenerate(job, generationContext());
-            }}
-            onRefreshPreview={(job) => void refreshPreview(job)}
-          />
+              onRefreshPreview={(job) => void refreshPreview(job)}
+              onOpenStudio={openStudio}
+              sessionId={source.source?.sessionId ?? ""}
+              onFineTuneSaved={(job, previewUrl) => {
+                generation.setPreviewUrl(job.requestId, previewUrl);
+                if (source.source) {
+                  const id = savedAdMatId(source.source.sessionId, job.size.width, job.size.height, job.requestId);
+                  const storageError = savedAdMats.updatePreview(id, previewUrl);
+                  if (storageError) setNotice(storageError);
+                }
+              }}
+              isSaved={(job) => savedAdMats.isSaved(job, source.source?.sessionId)}
+              onToggleSaved={(job) => {
+                if (!source.source) return;
+                const storageError = savedAdMats.toggle(job, source.source);
+                if (storageError) setNotice(storageError);
+              }}
+            />
+          )}
         </div>
-      </div>
+      </main>
+      <SavedArtworkLibrary
+        key={artworkLibraryOpen ? "open" : "closed"}
+        items={source.savedArtwork}
+        open={artworkLibraryOpen}
+        onOpenChange={setArtworkLibraryOpen}
+        onUse={async (item) => {
+          if (!hasSelectedArtwork) centeredCardRectRef.current = sourceCardRef.current?.getBoundingClientRect() ?? null;
+          const restored = await source.restore(item);
+          if (restored) {
+            setResultsView(false);
+            setNotice(null);
+          }
+          return restored;
+        }}
+        onRemove={source.removeSavedArtwork}
+        onRefreshPreview={source.refreshSavedPreview}
+      />
+      <SavedAdMatLibrary
+        items={savedAdMats.items}
+        open={savedLibraryOpen}
+        onOpenChange={setSavedLibraryOpen}
+        onRemove={savedAdMats.remove}
+        onRefreshPreview={savedAdMats.refreshPreview}
+        onDownload={savedAdMats.download}
+        onFineTuneSaved={savedAdMats.updatePreview}
+      />
     </div>
   );
 }

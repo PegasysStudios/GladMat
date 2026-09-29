@@ -48,8 +48,9 @@ export function assertSameOrigin(request: NextRequest) {
 
 const attempts = new Map<string, { count: number; resetsAt: number }>();
 
-export function enforceRateLimit(request: NextRequest, limit: number) {
-  const key = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+export function enforceRateLimit(request: NextRequest, limit: number, scope = "") {
+  const address = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  const key = `${address}:${scope}`;
   const now = Date.now();
   const current = attempts.get(key);
   if (!current || current.resetsAt < now) {

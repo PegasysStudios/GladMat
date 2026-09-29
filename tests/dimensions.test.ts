@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooseGenerationCanvas, classifyAspectRatio } from "@/lib/dimensions";
+import { chooseGenerationCanvas, classifyAspectRatio, classifyUltraShortBanner, isUltraShortBanner } from "@/lib/dimensions";
 
 describe("aspect ratio classification", () => {
   it.each([
@@ -11,6 +11,37 @@ describe("aspect ratio classification", () => {
     [120, 600, "SKYSCRAPER"],
   ] as const)("classifies %sx%s as %s", (width, height, expected) => {
     expect(classifyAspectRatio(width, height)).toBe(expected);
+  });
+});
+
+describe("ultra-short banner routing", () => {
+  it.each([
+    [970, 90, true],
+    [728, 90, true],
+    [468, 60, true],
+    [320, 50, true],
+    [234, 60, true],
+    [320, 100, false],
+    [970, 250, false],
+    [300, 250, false],
+    [250, 250, false],
+    [300, 600, false],
+    [120, 600, false],
+    [90, 90, false],
+  ] as const)("treats %sx%s as ultra-short=%s", (width, height, expected) => {
+    expect(isUltraShortBanner(width, height)).toBe(expected);
+  });
+
+  it.each([
+    [970, 90, "ULTRA_WIDE"],
+    [728, 90, "ULTRA_WIDE"],
+    [468, 60, "ULTRA_WIDE"],
+    [320, 50, "COMPACT"],
+    [234, 60, "COMPACT"],
+    [320, 100, null],
+    [90, 90, null],
+  ] as const)("classifies %sx%s as %s", (width, height, expected) => {
+    expect(classifyUltraShortBanner(width, height)).toBe(expected);
   });
 });
 

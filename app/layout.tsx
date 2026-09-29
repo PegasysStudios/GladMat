@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import { DialogProvider } from "@/components/ui/dialog";
 import "./globals.css";
 
 const geist = Geist({
@@ -18,7 +19,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className={geist.variable}>{children}</body>
+      <body className={geist.variable}>
+        <DialogProvider>{children}</DialogProvider>
+      </body>
     </html>
   );
 }

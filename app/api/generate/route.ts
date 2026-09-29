@@ -9,7 +9,7 @@ import { isExpectedSourcePath } from "@/lib/storage-paths";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 export async function POST(request: NextRequest) {
   const correlationId = randomUUID();

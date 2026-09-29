@@ -78,3 +78,14 @@ export async function assertPngDimensions(input: Buffer, width: number, height: 
   const metadata = await sharp(input, { failOn: "error", limitInputPixels: MAX_GENERATED_PIXELS }).metadata();
   return metadata.format === "png" && metadata.width === width && metadata.height === height;
 }
+
+export async function getImageDimensions(input: Buffer, source = false) {
+  const metadata = await sharp(input, {
+    failOn: "error",
+    limitInputPixels: source ? MAX_SOURCE_PIXELS : MAX_GENERATED_PIXELS,
+  }).metadata();
+  if (!metadata.width || !metadata.height) {
+    throw new AppError("PROCESSING_FAILED", "The image dimensions could not be read.", 502, true);
+  }
+  return { width: metadata.width, height: metadata.height };
+}

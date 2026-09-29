@@ -10,6 +10,7 @@ type GenerationContext = {
   source: SourceAsset;
   correctedText: string[];
   additionalInstructions: string;
+  regenerationInstructions?: string;
 };
 
 type QueueItem = {
@@ -24,6 +25,7 @@ export function useGenerationQueue() {
   const activeRef = useRef(0);
   const runVersionRef = useRef(0);
   const controllersRef = useRef(new Map<string, AbortController>());
+  const contextsRef = useRef(new Map<string, GenerationContext>());
   const pumpRef = useRef<() => void>(() => undefined);
 
   const updateJob = useCallback((requestId: string, update: Partial<GenerationJob>) => {
@@ -50,6 +52,9 @@ export function useGenerationQueue() {
           formatName: job.size.name,
           correctedText: context.correctedText,
           additionalInstructions: context.additionalInstructions,
+          ...(context.regenerationInstructions
+            ? { regenerationInstructions: context.regenerationInstructions }
+            : {}),
         },
         (event) => {
           if (runVersion !== runVersionRef.current) return;
@@ -58,10 +63,12 @@ export function useGenerationQueue() {
           } else if (event.type === "complete") {
             updateJob(job.requestId, {
               status: "complete",
+              assetToken: event.asset.assetToken,
               previewUrl: event.asset.previewUrl,
               needsReview: event.asset.needsReview,
               validationIssues: event.asset.validationIssues,
               attempts: event.asset.attempts,
+              fineTuneAvailable: event.asset.fineTuneAvailable,
               error: undefined,
             });
           }
@@ -100,6 +107,7 @@ export function useGenerationQueue() {
     queueRef.current = [];
     for (const controller of controllersRef.current.values()) controller.abort();
     controllersRef.current.clear();
+    contextsRef.current.clear();
     setJobs([]);
   }, []);
 
@@ -112,11 +120,20 @@ export function useGenerationQueue() {
       requestId: crypto.randomUUID(),
     }));
     setJobs(nextJobs);
+    contextsRef.current = new Map(nextJobs.map((job) => [job.requestId, {
+      ...context,
+      correctedText: [...context.correctedText],
+    }]));
     queueRef.current = nextJobs.map((job) => ({ job, context, runVersion }));
     queueMicrotask(() => pumpRef.current());
   }, [reset]);
 
-  const regenerate = useCallback((existing: GenerationJob, context: GenerationContext) => {
+  const regenerate = useCallback((
+    existing: GenerationJob,
+    regenerationInstructions: string,
+  ) => {
+    const originalContext = contextsRef.current.get(existing.requestId);
+    if (!originalContext) return;
     const job: GenerationJob = {
       size: existing.size,
       status: "queued",
@@ -126,7 +143,16 @@ export function useGenerationQueue() {
     setJobs((current) => current.map((candidate) => (
       candidate.size.id === existing.size.id ? job : candidate
     )));
-    queueRef.current.push({ job, context, runVersion: runVersionRef.current });
+    const context = {
+      ...originalContext,
+      regenerationInstructions: regenerationInstructions.trim(),
+    };
+    contextsRef.current.set(job.requestId, context);
+    queueRef.current.push({
+      job,
+      context,
+      runVersion: runVersionRef.current,
+    });
     queueMicrotask(() => pumpRef.current());
   }, []);
 

@@ -4,7 +4,9 @@ import { useRef, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
+  FolderOpen,
   LoaderCircle,
+  Maximize2,
   RefreshCw,
   Upload,
 } from "lucide-react";
@@ -12,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { CopyReview } from "@/components/copy-review";
 import { Panel } from "@/components/panel";
 import { StepHeading } from "@/components/step-heading";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/cn";
 import type { SourceAsset, UploadStatus } from "@/lib/types";
 
@@ -31,6 +34,9 @@ export function SourceUploader({
   onCorrectedTextChange,
   onFile,
   onRetryAnalysis,
+  savedArtworkCount = 0,
+  onOpenSavedArtwork,
+  storageError,
 }: {
   status: UploadStatus;
   source: SourceAsset | null;
@@ -41,9 +47,13 @@ export function SourceUploader({
   onCorrectedTextChange: (lines: string[]) => void;
   onFile: (file: File) => void;
   onRetryAnalysis: () => void;
+  savedArtworkCount?: number;
+  onOpenSavedArtwork?: () => void;
+  storageError?: string | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const preview = source?.previewUrl ?? localPreviewUrl;
   const busy = status === "uploading" || status === "analyzing";
 
@@ -69,95 +79,98 @@ export function SourceUploader({
         choose(event.dataTransfer.files);
       }}
       className={cn(
-        "flex h-full w-full flex-col items-center justify-center rounded-[12px] border border-dashed px-3 py-4 text-center transition",
-        preview ? "min-h-[148px] md:min-h-[168px]" : "min-h-[188px] md:min-h-[200px]",
+        "flex h-[178px] w-full flex-col items-center justify-center rounded-[9px] border border-dashed px-3 py-4 text-center transition",
         dragging
           ? "border-[var(--accent)] bg-[var(--accent-soft)]"
-          : "border-[var(--line-strong)] bg-[var(--surface-subtle)] hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]",
+          : "border-[var(--line-strong)] bg-white hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]",
       )}
     >
-      <span className="mb-3 grid size-10 place-items-center rounded-[10px] border border-[var(--line)] bg-white text-[var(--ink-muted)] shadow-sm">
-        <Upload aria-hidden="true" size={18} strokeWidth={1.8} />
+      <span className="mb-2.5 grid size-10 place-items-center text-[var(--ink)]">
+        <Upload aria-hidden="true" size={28} strokeWidth={1.65} />
       </span>
-      <span className="text-[13px] font-semibold leading-snug text-[var(--ink)]">Drag & drop your image here</span>
+      <span className="text-[13px] font-medium leading-snug text-[var(--ink)]">Drag & drop your image here</span>
       <span className="mt-1 text-[13px] text-[var(--accent)]">or click to browse</span>
-      <span className="mt-2 text-[11px] leading-snug text-[var(--ink-muted)]">PNG, JPG, or WEBP up to 20MB</span>
+      <span className="mt-2 text-[11px] leading-snug text-[var(--ink-muted)]">PNG, JPG, or WEBP up to 20 MB</span>
     </button>
   );
 
   return (
-    <Panel>
+    <Panel className="h-full">
       <StepHeading
         step={1}
         title="Source artwork"
         description="Upload your event flyer or campaign image."
       />
 
-      <div className={preview ? "grid grid-cols-2 items-stretch gap-3 md:grid-cols-[minmax(168px,1fr)_auto_minmax(0,1.15fr)] md:items-center" : ""}>
-        <div className={preview ? "min-h-[148px] md:min-h-[168px]" : ""}>{dropzone}</div>
+      <div>
+        {!preview ? dropzone : null}
 
         {preview ? (
-          <>
-            <div className="relative hidden overflow-hidden rounded-[12px] border border-[var(--line)] bg-white md:block">
-              {/* Private signed and local object URLs are deliberately rendered without an optimization proxy. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={preview}
-                alt={source ? `Source artwork: ${source.originalName}` : "Selected source artwork"}
-                className="h-[168px] w-auto max-w-[148px] object-contain"
-              />
-              {busy ? (
-                <div className="absolute inset-0 grid place-items-center bg-white/72">
-                  <LoaderCircle aria-hidden="true" size={18} className="animate-spin text-[var(--accent)]" />
-                </div>
-              ) : null}
-            </div>
-
-            <div className="min-w-0">
-              <div className="relative mb-2 overflow-hidden rounded-[12px] border border-[var(--line)] bg-white md:hidden">
+          <div className="min-w-0">
+              <button
+                type="button"
+                onClick={() => setPreviewOpen(true)}
+                aria-label="Preview source artwork"
+                aria-haspopup="dialog"
+                title="View full artwork"
+                className="group relative block w-full max-w-full overflow-hidden rounded-[9px] border border-[var(--line)] bg-[var(--surface-subtle)] p-1.5"
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={preview}
                   alt={source ? `Source artwork: ${source.originalName}` : "Selected source artwork"}
-                  className="h-[92px] w-full object-contain bg-[var(--surface-subtle)]"
+                  width={source?.width}
+                  height={source?.height}
+                  className="block h-auto max-h-[70vh] w-full object-contain"
                 />
                 {busy ? (
-                  <div className="absolute inset-0 grid place-items-center bg-white/72">
+                  <span className="absolute inset-0 grid place-items-center bg-white/72">
                     <LoaderCircle aria-hidden="true" size={18} className="animate-spin text-[var(--accent)]" />
-                  </div>
+                  </span>
                 ) : null}
-              </div>
+                <span className="pointer-events-none absolute bottom-3 right-3 grid size-8 place-items-center rounded-md bg-white/90 text-[var(--ink)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <Maximize2 aria-hidden="true" size={16} />
+                </span>
+              </button>
 
-              <p className="truncate text-[13px] font-semibold">{source?.originalName ?? "Preparing artwork…"}</p>
+              <p className="mt-2.5 truncate text-[13px] font-semibold">{source?.originalName ?? "Preparing artwork…"}</p>
               {source ? (
                 <p className="mt-0.5 text-[12px] tabular-nums text-[var(--ink-muted)]">
                   {source.width} × {source.height} px
+                  {fileSize != null ? `  ·  ${formatFileSize(fileSize)}` : ""}
                 </p>
               ) : null}
-              {fileSize != null ? (
+              {!source && fileSize != null ? (
                 <p className="text-[12px] tabular-nums text-[var(--ink-muted)]">{formatFileSize(fileSize)}</p>
               ) : null}
 
               {status === "ready" ? (
-                <p className="mt-2 flex items-center gap-1.5 text-[13px] font-medium text-[var(--success)]">
-                  <CheckCircle2 aria-hidden="true" size={16} />
+                <p className="mt-2.5 flex w-fit items-center gap-1.5 rounded-full bg-[var(--success-soft)] px-2 py-1 text-[12px] font-medium text-[#07883f]">
+                  <CheckCircle2 aria-hidden="true" size={15} />
                   Artwork analyzed
                 </p>
               ) : busy ? (
-                <p className="mt-2 flex items-center gap-1.5 text-[13px] font-medium text-[var(--accent)]">
+                <p className="mt-2.5 flex w-fit items-center gap-1.5 rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[12px] font-medium text-[var(--accent)]">
                   <LoaderCircle aria-hidden="true" size={15} className="animate-spin" />
                   {status === "uploading" ? "Uploading artwork…" : "Analyzing artwork…"}
                 </p>
               ) : null}
 
-              <Button variant="secondary" size="sm" className="mt-3 min-h-9 rounded-lg" onClick={openPicker}>
+              <Button variant="secondary" size="sm" className="mt-3.5 min-h-10 w-full rounded-[8px]" onClick={openPicker}>
                 <RefreshCw aria-hidden="true" size={14} />
                 Replace artwork
               </Button>
-            </div>
-          </>
+          </div>
         ) : null}
       </div>
+
+      {onOpenSavedArtwork ? (
+        <Button variant="secondary" size="sm" className="mt-3 min-h-10 w-full rounded-[8px]" onClick={onOpenSavedArtwork} disabled={busy}>
+          <FolderOpen aria-hidden="true" size={14} />
+          Saved artwork{savedArtworkCount ? ` (${savedArtworkCount})` : ""}
+        </Button>
+      ) : null}
+      {storageError ? <p role="alert" className="mt-3 text-[12px] text-[var(--danger)]">{storageError}</p> : null}
 
       <input
         ref={inputRef}
@@ -187,6 +200,27 @@ export function SourceUploader({
 
       {status === "ready" ? (
         <CopyReview lines={correctedText} onChange={onCorrectedTextChange} />
+      ) : null}
+      {preview ? (
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="flex h-[calc(100dvh-2rem)] max-w-[min(1180px,calc(100%-2rem))] flex-col overflow-hidden p-0">
+            <div className="shrink-0 border-b border-[var(--line)] px-5 py-4 pr-16">
+              <DialogTitle>Source artwork</DialogTitle>
+              <DialogDescription className="break-words">
+                {source?.originalName ?? "Selected artwork"}
+                {source ? ` · ${source.width} × ${source.height} px` : ""}
+              </DialogDescription>
+            </div>
+            <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] place-items-center bg-[var(--surface-subtle)] p-4 sm:p-8">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={preview}
+                alt={source ? `Full source artwork: ${source.originalName}` : "Full selected artwork"}
+                className="h-full min-h-0 w-full min-w-0 object-contain"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       ) : null}
     </Panel>
   );

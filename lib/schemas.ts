@@ -1,7 +1,9 @@
 import { z } from "zod";
+import { MAX_FINE_TUNE_SCALE, MIN_FINE_TUNE_SCALE } from "@/lib/fine-tune";
 
 const shortText = z.string().trim().max(500);
 const optionalCopy = z.string().trim().max(300);
+const detectedCopy = optionalCopy.optional().default("");
 
 export const ColorSchema = z
   .object({
@@ -14,15 +16,15 @@ export const SourceAnalysisSchema = z
   .object({
     summary: z.string().trim().min(1).max(2000),
     exactText: z.array(optionalCopy).max(80),
-    primaryHeadline: optionalCopy,
-    artistOrEventName: optionalCopy,
-    dateText: optionalCopy,
-    timeText: optionalCopy,
-    venueText: optionalCopy,
-    locationText: optionalCopy,
-    ctaText: optionalCopy,
-    websiteText: optionalCopy,
-    otherRequiredText: z.array(optionalCopy).max(40),
+    primaryHeadline: detectedCopy,
+    artistOrEventName: detectedCopy,
+    dateText: detectedCopy,
+    timeText: detectedCopy,
+    venueText: detectedCopy,
+    locationText: detectedCopy,
+    ctaText: detectedCopy,
+    websiteText: detectedCopy,
+    otherRequiredText: z.array(optionalCopy).max(40).optional().default([]),
     visualStyle: z.string().trim().min(1).max(1500),
     colorPalette: z.array(ColorSchema).max(16),
     typography: z
@@ -54,6 +56,7 @@ export type SourceAnalysis = z.infer<typeof SourceAnalysisSchema>;
 
 export const SessionIdSchema = z.string().uuid();
 export const SessionTokenSchema = z.string().regex(/^\d{10,13}\.[a-f0-9]{64}$/i);
+export const AssetTokenSchema = z.string().regex(/^\d{10,13}\.[a-f0-9]{64}$/i);
 export const RequestIdSchema = z.string().uuid();
 
 export const ImageMimeSchema = z.enum(["image/png", "image/jpeg", "image/webp"]);
@@ -117,6 +120,7 @@ export const GenerateRequestSchema = z
     formatName: z.string().trim().min(1).max(80),
     correctedText: z.array(optionalCopy).max(80),
     additionalInstructions: z.string().trim().max(1500),
+    regenerationInstructions: z.string().trim().min(1).max(1500).optional(),
   })
   .strict()
   .superRefine(({ width, height }, context) => {
@@ -144,7 +148,7 @@ export const AssetIdentitySchema = z
     }
   });
 
-export const SignAssetRequestSchema = z
+const SessionAssetAccessSchema = z
   .object({
     sessionId: SessionIdSchema,
     sessionToken: SessionTokenSchema,
@@ -152,14 +156,48 @@ export const SignAssetRequestSchema = z
   })
   .strict();
 
-export const DownloadAssetRequestSchema = z
+const SavedAssetAccessSchema = z
   .object({
     sessionId: SessionIdSchema,
-    sessionToken: SessionTokenSchema,
-    sourceName: z.string().trim().min(1).max(120),
+    assetToken: AssetTokenSchema,
     asset: AssetIdentitySchema,
   })
   .strict();
+
+export const SignAssetRequestSchema = z.union([
+  SessionAssetAccessSchema,
+  SavedAssetAccessSchema,
+]);
+
+export const FineTuneTransformSchema = z.object({
+  scale: z.number().min(MIN_FINE_TUNE_SCALE).max(MAX_FINE_TUNE_SCALE),
+  offsetX: z.number().min(-1).max(1),
+  offsetY: z.number().min(-1).max(1),
+}).strict();
+
+export const SaveFineTuneRequestSchema = z.union([
+  SessionAssetAccessSchema.extend({ transform: FineTuneTransformSchema }),
+  SavedAssetAccessSchema.extend({ transform: FineTuneTransformSchema }),
+]);
+
+export const DownloadAssetRequestSchema = z.union([
+  z
+    .object({
+      sessionId: SessionIdSchema,
+      sessionToken: SessionTokenSchema,
+      sourceName: z.string().trim().min(1).max(120),
+      asset: AssetIdentitySchema,
+    })
+    .strict(),
+  z
+    .object({
+      sessionId: SessionIdSchema,
+      assetToken: AssetTokenSchema,
+      sourceName: z.string().trim().min(1).max(120),
+      asset: AssetIdentitySchema,
+    })
+    .strict(),
+]);
 
 export const DownloadZipRequestSchema = z
   .object({

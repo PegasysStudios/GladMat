@@ -6,6 +6,7 @@ import { AppError, errorResponse, logServerError } from "@/lib/server/errors";
 import { normalizeSourceImage } from "@/lib/server/image-processing";
 import { assertSameOrigin, enforceRateLimit, parseJson } from "@/lib/server/request";
 import { assertSessionToken, mintSessionToken } from "@/lib/server/session-token";
+import { mintSourceToken } from "@/lib/server/source-token";
 import {
   createSignedPreview,
   createSignedUpload,
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
       {
         sessionId: input.sessionId,
         sessionToken: input.sessionToken,
+        sourceToken: mintSourceToken(input.sessionId),
         sourcePath,
         originalName: input.originalName,
         sourceName: sanitizeBaseName(input.originalName),

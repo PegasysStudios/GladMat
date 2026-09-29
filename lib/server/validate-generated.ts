@@ -7,14 +7,43 @@ import { getOpenAIConfig } from "@/lib/server/config";
 import { AppError } from "@/lib/server/errors";
 import { getOpenAIClient } from "@/lib/server/openai";
 
+export type ValidationReferenceImages = {
+  master?: Buffer;
+  layout?: Buffer;
+  layoutReferenceUsed?: boolean;
+};
+
 export async function validateGeneratedAsset(
   image: Buffer,
   expectedCopy: string[],
   width: number,
   height: number,
   signal?: AbortSignal,
+  references: ValidationReferenceImages = {},
 ): Promise<QualityValidation> {
   const { analysisModel } = getOpenAIConfig();
+  const referenceContent = [
+    ...(references.master
+      ? [
+          { type: "input_text" as const, text: "IMAGE A — MASTER CAMPAIGN ARTWORK" },
+          {
+            type: "input_image" as const,
+            image_url: `data:image/png;base64,${references.master.toString("base64")}`,
+            detail: "original" as const,
+          },
+        ]
+      : []),
+    ...(references.layout
+      ? [
+          { type: "input_text" as const, text: "IMAGE B — TARGET FORMAT LAYOUT REFERENCE (layout only)" },
+          {
+            type: "input_image" as const,
+            image_url: `data:image/png;base64,${references.layout.toString("base64")}`,
+            detail: "original" as const,
+          },
+        ]
+      : []),
+  ];
   const response = await getOpenAIClient().responses.parse(
     {
       model: analysisModel,
@@ -23,12 +52,22 @@ export async function validateGeneratedAsset(
         {
           role: "user",
           content: [
-            { type: "input_text", text: buildValidationPrompt(expectedCopy, width, height) },
+            {
+              type: "input_text",
+              text: buildValidationPrompt(
+                expectedCopy,
+                width,
+                height,
+                Boolean(references.layout && references.layoutReferenceUsed),
+              ),
+            },
+            { type: "input_text", text: "GENERATED OUTPUT — review this candidate" },
             {
               type: "input_image",
               image_url: `data:image/png;base64,${image.toString("base64")}`,
               detail: "original",
             },
+            ...referenceContent,
           ],
         },
       ],

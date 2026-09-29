@@ -1,92 +1,30 @@
-"use client";
+import { Heart } from "lucide-react";
 
-import { CircleHelp, Settings } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-
-export function AppHeader() {
+export function AppHeader({ savedCount, onOpenSaved }: { savedCount: number; onOpenSaved: () => void }) {
   return (
-    <header className="flex w-full min-w-0 items-start justify-between gap-2 sm:items-center sm:gap-3">
-      <div className="w-0 min-w-0 flex-1 overflow-hidden">
-        <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-3">
-          <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--ink)]">GladMat</h1>
-          <p className="text-[13px] leading-snug text-[var(--ink-muted)] sm:text-[14px]">
+    <header className="border-b border-[var(--line)] bg-white">
+      <div className="mx-auto flex h-[57px] w-full max-w-[1540px] min-w-0 items-center justify-between gap-4 px-4 sm:px-5">
+        <div className="flex min-w-0 flex-col gap-0 sm:flex-row sm:items-baseline sm:gap-5">
+          <h1 className="shrink-0 text-[23px] font-bold tracking-[-0.045em] text-[var(--ink)]">GladMat</h1>
+          <p className="truncate text-[13px] leading-snug text-[var(--ink-muted)]">
             Turn one campaign asset into every ad size you need.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={onOpenSaved}
+          className="flex min-h-9 shrink-0 items-center gap-2 rounded-[8px] border border-[var(--line)] bg-white px-3 text-[12px] font-semibold text-[var(--ink)] transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-subtle)]"
+          aria-label={`Open saved AdMats library${savedCount ? `, ${savedCount} saved` : ""}`}
+        >
+          <Heart aria-hidden="true" size={15} className="text-[#e11d48]" fill={savedCount ? "currentColor" : "none"} />
+          <span>Saved</span>
+          {savedCount ? (
+            <span className="grid min-w-5 place-items-center rounded-full bg-[#fff1f2] px-1.5 py-0.5 text-[10px] tabular-nums text-[#be123c]">
+              {savedCount}
+            </span>
+          ) : null}
+        </button>
       </div>
-
-      {/* <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-        <Dialog>
-          <DialogTrigger asChild>
-            <button
-              type="button"
-              aria-label="Help"
-              className="grid size-8 place-items-center rounded-full border border-[var(--line)] bg-white text-[var(--ink-muted)] hover:text-[var(--ink)] sm:size-9"
-            >
-              <CircleHelp aria-hidden="true" size={16} />
-            </button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogTitle>How AdMat works</DialogTitle>
-            <DialogDescription>
-              Upload one flyer, confirm the detected copy, pick the sizes you need, then generate each format independently.
-            </DialogDescription>
-            <ol className="mt-5 space-y-3 text-[14px] text-[var(--ink)]">
-              <li>
-                <span className="font-semibold">1. Source artwork.</span> PNG, JPG, or WEBP up to 20 MB. AdMat analyzes layout, style, and exact text once.
-              </li>
-              <li>
-                <span className="font-semibold">2. Output sizes.</span> Choose presets or add a custom size. Each selected format is its own image request.
-              </li>
-              <li>
-                <span className="font-semibold">3. Additional instructions.</span> Optional notes for how the design should adapt across formats.
-              </li>
-            </ol>
-            <p className="mt-5 text-[13px] leading-relaxed text-[var(--ink-muted)]">
-              Review names, dates, venues, and logos before publishing. Generated ads are a production draft, not a final approval.
-            </p>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog>
-          <DialogTrigger asChild>
-            <button
-              type="button"
-              aria-label="Settings"
-              className="grid size-8 place-items-center rounded-full border border-[var(--line)] bg-white text-[var(--ink-muted)] hover:text-[var(--ink)] sm:size-9"
-            >
-              <Settings aria-hidden="true" size={16} />
-            </button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogTitle>Workspace</DialogTitle>
-            <DialogDescription>
-              This session lives in your browser. Refreshing starts a new workspace; artwork and outputs are not kept as an account history.
-            </DialogDescription>
-            <ul className="mt-5 space-y-2 text-[14px] text-[var(--ink)]">
-              <li>Uploads go to a private storage bucket for this session only.</li>
-              <li>At most two formats generate at once.</li>
-              <li>ZIP downloads include only successfully generated PNGs.</li>
-            </ul>
-          </DialogContent>
-        </Dialog>
-
-        <div className="ml-0.5 flex items-center gap-1.5 sm:ml-1 sm:gap-2 sm:pl-1">
-          <span className="grid size-8 place-items-center rounded-full bg-[#1e3a8a] text-[10px] font-semibold tracking-wide text-white sm:size-9 sm:text-[11px]">
-            JD
-          </span>
-          <span className="leading-tight">
-            <span className="block text-[12px] font-semibold text-[var(--ink)] sm:text-[13px]">Jordan</span>
-            <span className="block text-[11px] text-[var(--ink-muted)] sm:text-[12px]">Marketing</span>
-          </span>
-        </div> 
-      </div> */}
     </header>
   );
 }

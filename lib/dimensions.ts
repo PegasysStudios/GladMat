@@ -14,6 +14,21 @@ export type GenerationCanvas = {
   requiresSafeCrop: boolean;
 };
 
+export const ULTRA_SHORT_BANNER_MAX_HEIGHT = 100;
+export const ULTRA_SHORT_BANNER_MIN_ASPECT_RATIO = 3;
+export const ULTRA_WIDE_SHORT_BANNER_MIN_ASPECT_RATIO = 7;
+
+export type UltraShortBannerClass = "ULTRA_WIDE" | "COMPACT";
+
+export function isUltraShortBanner(width: number, height: number) {
+  return height < ULTRA_SHORT_BANNER_MAX_HEIGHT && width / height >= ULTRA_SHORT_BANNER_MIN_ASPECT_RATIO;
+}
+
+export function classifyUltraShortBanner(width: number, height: number): UltraShortBannerClass | null {
+  if (!isUltraShortBanner(width, height)) return null;
+  return width / height >= ULTRA_WIDE_SHORT_BANNER_MIN_ASPECT_RATIO ? "ULTRA_WIDE" : "COMPACT";
+}
+
 export function classifyAspectRatio(width: number, height: number): AspectCategory {
   const ratio = width / height;
   if (ratio >= 4) return "ULTRA_WIDE";

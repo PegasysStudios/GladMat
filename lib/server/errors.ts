@@ -2,6 +2,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import type { StudioErrorDetails } from "@/lib/studio-protocol";
 
 export type ErrorCode =
   | "INVALID_REQUEST"
@@ -17,6 +18,13 @@ export type ErrorCode =
   | "PROCESSING_FAILED"
   | "STORAGE_FAILED"
   | "ASSET_NOT_FOUND"
+  | "STUDIO_NOT_FOUND"
+  | "STUDIO_FAILED"
+  | "STUDIO_CLIENT_OUTDATED"
+  | "STUDIO_PREPARATION_CHANGED"
+  | "STUDIO_SELECTIONS_MISSING"
+  | "STUDIO_SELECTION_INVALID"
+  | "STUDIO_ARTIFACT_MISSING"
   | "ZIP_FAILED"
   | "INTERNAL_ERROR";
 
@@ -26,6 +34,7 @@ export class AppError extends Error {
     message: string,
     public readonly status = 500,
     public readonly retryable = false,
+    public readonly details: StudioErrorDetails = {},
   ) {
     super(message);
     this.name = "AppError";
@@ -182,12 +191,7 @@ export function errorResponse(error: unknown, requestId: string, fallback?: AppE
   );
   return NextResponse.json(
     {
-      error: {
-        code: normalized.code,
-        message: normalized.message,
-        retryable: normalized.retryable,
-        requestId,
-      },
+      error: publicError(normalized, requestId),
     },
     {
       status: normalized.status,
@@ -196,10 +200,17 @@ export function errorResponse(error: unknown, requestId: string, fallback?: AppE
   );
 }
 
+export function publicError(error: AppError, requestId: string) {
+  return { code: error.code, message: error.message, retryable: error.retryable, requestId, ...error.details };
+}
+
 export function logServerError(
   error: unknown,
   context: Record<string, string | number | boolean | undefined>,
 ) {
   const info = inspectUnknownError(error);
-  console.error(`[AdMat] request failed ${JSON.stringify({ ...context, ...info })}`);
+  const { requestId: upstreamRequestId, ...rest } = info;
+  const defined = Object.fromEntries(Object.entries(rest).filter(([, value]) => value !== undefined));
+  if (typeof defined.message === "string") defined.message = publicUpstreamDetail(defined.message);
+  console.error(`[AdMat] request failed ${JSON.stringify({ ...context, ...defined, ...(upstreamRequestId ? { upstreamRequestId } : {}) })}`);
 }

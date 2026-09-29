@@ -7,9 +7,11 @@ import {
   Clock,
   Download,
   Eye,
+  Heart,
   LoaderCircle,
+  Frame,
   RefreshCw,
-  RotateCcw,
+  SlidersHorizontal,
   TriangleAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,17 +25,29 @@ export function ResultCard({
   onDownload,
   onRegenerate,
   onRefreshPreview,
+  onOpenStudio,
+  onFineTune,
+  saved,
+  onToggleSaved,
+  expanded = false,
 }: {
   job: GenerationJob;
   onPreview: (job: GenerationJob) => void;
   onDownload: (job: GenerationJob) => Promise<void>;
   onRegenerate: (job: GenerationJob) => void;
   onRefreshPreview: (job: GenerationJob) => void;
+  onOpenStudio: (job: GenerationJob) => void;
+  onFineTune?: (job: GenerationJob) => void;
+  saved: boolean;
+  onToggleSaved: (job: GenerationJob) => void;
+  expanded?: boolean;
 }) {
   const [downloading, setDownloading] = useState(false);
   const [refreshAttempted, setRefreshAttempted] = useState(false);
   const active = job.status === "queued" || job.status === "generating" || job.status === "processing";
   const canPreview = job.status === "complete" && Boolean(job.previewUrl);
+  const canOpenStudio = job.status === "complete" && Boolean(job.assetToken);
+  const canFineTune = canOpenStudio && job.fineTuneAvailable && Boolean(onFineTune);
 
   const status = (() => {
     if (job.status === "queued") return { label: "Queued", icon: <Clock size={14} />, className: "text-[var(--ink-muted)]" };
@@ -43,6 +57,15 @@ export function ResultCard({
     if (job.needsReview) return { label: "Needs review", icon: <TriangleAlert size={14} />, className: "text-[var(--warning)]" };
     return { label: "Complete", icon: <Check size={14} />, className: "text-[var(--success)]" };
   })();
+  const statusBadgeClass = job.status === "error"
+    ? "bg-[var(--danger-soft)] text-[var(--danger)]"
+    : job.status === "complete" && job.needsReview
+      ? "bg-[#fff4dd] text-[var(--warning)]"
+      : job.status === "complete"
+        ? "bg-[var(--success-soft)] text-[#07883f]"
+        : job.status === "queued"
+          ? "bg-[#f0f1f3] text-[var(--ink-muted)]"
+          : "bg-[var(--accent-soft)] text-[var(--accent)]";
 
   async function download() {
     setDownloading(true);
@@ -56,19 +79,17 @@ export function ResultCard({
   const previewBody = (() => {
     if (job.status === "queued") {
       return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-3 text-center text-[var(--ink-muted)]">
-          <Clock aria-hidden="true" size={18} />
-          <p className="hidden text-[13px] font-medium md:block">In queue...</p>
-          <p className="hidden text-[12px] md:block">{"We'll start this next."}</p>
+        <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-2 text-center text-[var(--ink-muted)]">
+          <Clock aria-hidden="true" size={18} className="shrink-0" />
+          <p className="text-[11px] font-medium leading-4">Queued</p>
         </div>
       );
     }
     if ((job.status === "generating" || job.status === "processing") && !job.previewUrl) {
       return (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center">
-          <LoaderCircle aria-hidden="true" size={22} className="animate-spin text-[var(--accent)]" />
-          <p className="hidden text-[13px] font-medium text-[var(--ink)] md:block">Creating your ad...</p>
-          <p className="hidden text-[12px] text-[var(--ink-muted)] md:block">This usually takes a few seconds.</p>
+        <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-2 text-center">
+          <LoaderCircle aria-hidden="true" size={18} className="shrink-0 animate-spin text-[var(--accent)]" />
+          <p className="text-[11px] font-medium leading-4 text-[var(--ink)]">Working...</p>
         </div>
       );
     }
@@ -78,14 +99,14 @@ export function ResultCard({
           type="button"
           disabled={!canPreview}
           onClick={() => onPreview(job)}
-          className="group relative grid h-full w-full place-items-center disabled:cursor-default"
+          className="group relative grid h-full min-h-0 w-full min-w-0 place-items-center disabled:cursor-default"
           aria-label={`Preview ${job.size.name}, ${job.size.width} by ${job.size.height}`}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={job.previewUrl}
             alt={`${job.size.name} generated advertisement`}
-            className="max-h-full max-w-full object-contain"
+            className={cn("max-h-full max-w-full object-contain", expanded && "min-h-0 min-w-0 drop-shadow-[0_8px_18px_rgb(17_24_39/0.12)]")}
             onLoad={() => setRefreshAttempted(false)}
             onError={() => {
               if (job.status === "complete" && !refreshAttempted) {
@@ -95,9 +116,9 @@ export function ResultCard({
             }}
           />
           {active ? (
-            <span className="absolute inset-0 grid place-items-center bg-white/72">
-              <span className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-[12px] font-medium shadow-sm">
-                <LoaderCircle aria-hidden="true" size={15} className="animate-spin text-[var(--accent)]" />
+            <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-white/85 px-2 text-center">
+              <LoaderCircle aria-hidden="true" size={18} className="shrink-0 animate-spin text-[var(--accent)]" />
+              <span className="text-[11px] font-medium leading-4 text-[var(--ink)]">
                 {job.status === "processing" ? "Processing" : "Regenerating"}
               </span>
             </span>
@@ -117,77 +138,86 @@ export function ResultCard({
     );
   })();
 
-  const actions = (
-    <div className="flex gap-2">
-      {job.status === "complete" ? (
-        job.needsReview ? (
-          <>
-            <Button variant="secondary" size="sm" className="min-h-8 flex-1 rounded-lg px-2 text-[12px] md:min-h-9 md:px-2.5" onClick={() => onPreview(job)} disabled={!canPreview}>
-              <Eye aria-hidden="true" size={14} />
-              Preview
-            </Button>
-            <Button variant="secondary" size="sm" className="min-h-8 flex-1 rounded-lg px-2 text-[12px] md:min-h-9 md:px-2.5" onClick={() => onRegenerate(job)}>
-              <RotateCcw aria-hidden="true" size={14} />
-              Regenerate
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button variant="secondary" size="sm" className="min-h-8 flex-1 rounded-lg px-2 text-[12px] md:min-h-9 md:px-2.5" onClick={() => onPreview(job)} disabled={!canPreview}>
-              <Eye aria-hidden="true" size={14} />
-              Preview
-            </Button>
-            <Button variant="secondary" size="sm" className="min-h-8 flex-1 rounded-lg px-2 text-[12px] md:min-h-9 md:px-2.5" onClick={() => void download()} disabled={downloading}>
-              {downloading ? <LoaderCircle aria-hidden="true" size={14} className="animate-spin" /> : <Download aria-hidden="true" size={14} />}
-              Download
-            </Button>
-          </>
-        )
-      ) : job.status === "error" ? (
-        <Button variant="secondary" size="sm" className="min-h-8 rounded-lg px-2 text-[12px] md:min-h-9 md:px-2.5" onClick={() => onRegenerate(job)}>
-          <RefreshCw aria-hidden="true" size={14} /> Retry
+  const actionButtonClass = cn("size-7 min-h-7 rounded-[7px]", expanded && "size-8 min-h-8");
+  const actions = job.status === "complete" ? (
+    <div className="mt-1.5 flex items-center justify-end gap-1" role="group" aria-label={`Actions for ${job.size.name}`}>
+      <Button variant="secondary" size="icon" className={actionButtonClass} aria-label={`Preview ${job.size.name}`} title="Preview" onClick={() => onPreview(job)} disabled={!canPreview}>
+        <Eye aria-hidden="true" size={15} />
+      </Button>
+      <Button variant="secondary" size="icon" className={actionButtonClass} aria-label={`Download ${job.size.name}`} title="Download PNG" onClick={() => void download()} disabled={downloading}>
+        {downloading ? <LoaderCircle aria-hidden="true" size={15} className="animate-spin" /> : <Download aria-hidden="true" size={15} />}
+      </Button>
+      {canFineTune ? (
+        <Button variant="secondary" size="icon" className={actionButtonClass} aria-label={`Fine-tune ${job.size.name}`} title="Fine-tune" onClick={() => onFineTune?.(job)}>
+          <SlidersHorizontal aria-hidden="true" size={15} />
+        </Button>
+      ) : null}
+      {canOpenStudio ? (
+        <Button variant="secondary" size="icon" className={cn(actionButtonClass, "text-[var(--accent)]")} aria-label={`Open ${job.size.name} in Studio`} title="Open in Studio" onClick={() => onOpenStudio(job)}>
+          <Frame aria-hidden="true" size={15} />
         </Button>
       ) : null}
     </div>
-  );
+  ) : job.status === "error" ? (
+    <Button variant="secondary" size="icon" className={cn(actionButtonClass, "mt-1.5")} aria-label={`Retry ${job.size.name}`} title="Retry" onClick={() => onRegenerate(job)}>
+      <RefreshCw aria-hidden="true" size={15} />
+    </Button>
+  ) : null;
 
   return (
-    <article className="relative overflow-hidden rounded-[14px] border border-[var(--line)] bg-white p-3 md:p-3.5">
-      <div className="flex gap-3 md:flex-col">
-        <div className="order-1 grid size-16 shrink-0 place-items-center overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface-subtle)] md:order-3 md:h-[132px] md:w-full md:size-auto">
+    <article className={cn("relative rounded-[9px] border border-[var(--line)] bg-white p-2", expanded && "flex min-w-0 flex-col overflow-hidden rounded-[12px] p-0 shadow-sm")}>
+      <div className={cn("flex gap-2", expanded && "flex-col gap-0")}>
+        <div className={cn(
+          "grid h-[82px] w-[100px] shrink-0 grid-rows-[minmax(0,1fr)] place-items-center overflow-hidden rounded-[6px] border border-[var(--line)] bg-[var(--surface-subtle)]",
+          expanded && "h-[220px] w-full rounded-none border-0 border-b bg-[#eef0f3] p-4",
+        )}>
           {previewBody}
         </div>
 
-        <div className="order-2 flex min-w-0 flex-1 flex-col md:contents">
-          <div className="md:order-1 flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="truncate text-[13px] font-semibold text-[var(--ink)]">{job.size.name}</h3>
-              <p className="mt-0.5 text-[12px] tabular-nums text-[var(--ink-muted)]">{job.size.width} × {job.size.height}</p>
+        <div className={cn("flex min-w-0 flex-1 flex-col", expanded && "flex-none p-4 sm:p-5")}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h3 className={cn("truncate text-[12px] font-semibold leading-tight text-[var(--ink)]", expanded && "text-[15px]")}>{job.size.name}</h3>
+              <p className={cn("mt-0.5 text-[11px] tabular-nums leading-tight text-[var(--ink-muted)]", expanded && "mt-1 text-[12px]")}>{job.size.width} × {job.size.height}{expanded ? " px" : ""}</p>
+              <div className={cn("mt-1", expanded && "mt-3")}>
+                <div className={cn("flex w-fit items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-4", expanded && "gap-1.5 px-2 py-1 text-[12px]", statusBadgeClass)}>
+                  {status.icon}
+                  <span>{status.label}</span>
+                </div>
+              </div>
             </div>
-            <IconMenu
-              label={`More actions for ${job.size.name}`}
-              className="shrink-0"
-              items={[
-                ...(canPreview ? [{ label: "Preview", onClick: () => onPreview(job) }] : []),
-                ...(job.status === "complete" ? [{ label: "Download", onClick: () => void download(), disabled: downloading }] : []),
-                { label: job.status === "error" ? "Retry" : "Regenerate", onClick: () => onRegenerate(job), disabled: active },
-              ]}
-            />
-          </div>
-
-          <div className="mt-auto flex items-center justify-between gap-2 pt-1 md:contents">
-            <div className={cn("flex items-center gap-1.5 text-[12px] font-medium md:order-2 md:mt-1", status.className)}>
-              {status.icon}
-              <span>{status.label}</span>
-            </div>
-            <div className="md:order-5 md:mt-3">
+            <div className="-mr-0.5 -mt-0.5 flex shrink-0 flex-col items-end">
+              <div className="flex items-center">
+                {job.status === "complete" && job.assetToken ? (
+                  <button
+                    type="button"
+                    aria-label={saved ? `Remove ${job.size.name} from saved AdMats` : `Save ${job.size.name} to saved AdMats`}
+                    aria-pressed={saved}
+                    title={saved ? "Remove from saved" : "Save to library"}
+                    onClick={() => onToggleSaved(job)}
+                    className="grid size-7 place-items-center rounded-md text-[#e11d48] transition-colors hover:bg-[#fff1f2]"
+                  >
+                    <Heart aria-hidden="true" size={15} fill={saved ? "currentColor" : "none"} />
+                  </button>
+                ) : null}
+                <IconMenu
+                  label={`More actions for ${job.size.name}`}
+                  items={[
+                    ...(canPreview ? [{ label: "Preview", onClick: () => onPreview(job) }] : []),
+                    ...(job.status === "complete" ? [{ label: "Download", onClick: () => void download(), disabled: downloading }] : []),
+                    ...(canOpenStudio ? [{ label: "Open in Studio", onClick: () => onOpenStudio(job) }] : []),
+                    ...(canFineTune ? [{ label: "Fine-tune", onClick: () => onFineTune?.(job) }] : []),
+                    { label: job.status === "error" ? "Retry" : "Regenerate", onClick: () => onRegenerate(job), disabled: active },
+                  ]}
+                />
+              </div>
               {actions}
             </div>
           </div>
 
-          {job.error ? <p role="alert" className="mt-2 text-[12px] leading-relaxed text-[var(--danger)] md:order-4">{job.error}</p> : null}
+          {job.error ? <p role="alert" className="mt-1 text-[10px] leading-tight text-[var(--danger)]">{job.error}</p> : null}
           {job.needsReview && job.validationIssues?.length ? (
-            <p className="mt-2 text-[12px] leading-relaxed text-[var(--warning)] md:order-4">{job.validationIssues[0]}</p>
+            <p className="mt-1 line-clamp-1 text-[10px] leading-tight text-[var(--warning)]">{job.validationIssues[0]}</p>
           ) : null}
         </div>
       </div>

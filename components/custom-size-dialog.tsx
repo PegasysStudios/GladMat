@@ -45,9 +45,9 @@ export function CustomSizeDialog({ onAdd }: { onAdd: (size: AdSize) => void }) {
       }}
     >
       <DialogTrigger asChild>
-        <button type="button" className="flex h-[108px] min-w-[6.85rem] shrink-0 snap-start flex-col items-center justify-center rounded-[12px] border border-dashed border-[var(--line-strong)] bg-[var(--surface-subtle)] p-3 text-center text-[var(--ink-muted)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] md:min-w-0 md:shrink">
-          <Plus aria-hidden="true" size={18} />
-          <span className="mt-2 text-[12px] font-semibold">Custom size</span>
+        <button type="button" className="size-card flex h-[114px] shrink-0 snap-start flex-col items-center justify-center rounded-[9px] border border-dashed border-[var(--line-strong)] bg-white p-3 text-center text-[var(--ink-muted)] transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]">
+          <Plus aria-hidden="true" size={22} strokeWidth={1.7} />
+          <span className="mt-2 text-[12px] font-medium">Custom size</span>
         </button>
       </DialogTrigger>
       <DialogContent>

@@ -8,7 +8,7 @@ export function Panel({
 }: ComponentPropsWithoutRef<"section">) {
   return (
     <section
-      className={cn("min-w-0 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5", className)}
+      className={cn("min-w-0 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow)]", className)}
       {...props}
     >
       {children}
