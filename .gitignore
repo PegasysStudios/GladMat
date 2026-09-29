@@ -29,3 +29,8 @@ next-env.d.ts
 
 # Sites runtime metadata
 /.sites-runtime/
+
+# Workflow generated routes and local state
+/app/.well-known/workflow/
+/.workflow-data/
+/.swc

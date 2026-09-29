@@ -31,21 +31,21 @@ Browser
   ├─ request path-scoped signed upload
   ├─ upload source directly to private Supabase Storage
   ├─ request server verification + normalization
-  ├─ request one source analysis
-  └─ run at most two independent /api/generate streams at once
+  ├─ start one source analysis job when durable jobs are enabled
+  └─ observe generation jobs (or use the original streams while disabled)
 
 Next.js route handlers (Node.js runtime)
   ├─ validate every request with strict Zod schemas
   ├─ verify a short-lived HMAC session capability
   ├─ download only server-derived private storage paths
-  ├─ call OpenAI Responses for structured vision analysis
-  ├─ call OpenAI Images edit once per target/attempt with the source image
-  ├─ stream truthful generating/processing state to the browser
+  ├─ start a durable Workflow when enabled, then return a job reference
+  ├─ submit OpenAI background Responses and persist each completed result
+  ├─ report saved phase and layer progress to the browser
   ├─ force exact output dimensions with Sharp
   └─ upload outputs and archives, then return signed URLs
 ```
 
-There is no database, ORM, application authentication, or global state framework. The browser keeps the active workflow in React state. Analysis JSON is stored privately beside the canonical source so generation does not trust a client-supplied analysis object.
+With durable jobs enabled, the existing Supabase project stores job checkpoints in two service-role-only tables. Images and analysis JSON remain in private Storage. The browser keeps job references in local storage so it can reconnect after a refresh. The app still has no in-app authentication; access relies on signed, scoped capabilities.
 
 ## AdMat Studio
 
@@ -66,7 +66,7 @@ Preparation (`source-pixels-v2`):
 
 Old `simple-v1` documents are ignored for editing and preserved in history when rebuilt. Each preparation has a unique artifact directory so rebuilding a fine-tuned asset does not overwrite prior layer images. Completed selections can resume within that preparation without repeating paid extraction calls. Parallel workers write independent masks/metadata; only final assembly publishes the shared document. Browser autosave runs after preparation, preventing partially extracted states from overwriting server results. Private images remain available through the same-origin, asset-token-scoped image route.
 
-Studio API requests require `apiVersion: 1`; extraction, background, image and editor-save requests also require the current `preparationId`. Older clients receive a page-refresh instruction before processing. Editor saves cannot overwrite preparation metadata or save an incomplete canvas. Background creation first checks verified masks and metadata, then streams background/assembly progress as NDJSON. The UI displays the actual failed stage, a recovery action and an issue reference. Retry resumes cached selections and a reviewed background checkpoint; image-loading retries do not rerun AI preparation.
+Studio API requests require `apiVersion: 2`; extraction, background, image and editor-save requests also require the current `preparationId`. Older clients receive a page-refresh instruction before processing. Editor saves cannot overwrite preparation metadata or save an incomplete canvas. With durable jobs enabled, Studio preparation runs on the server and reports all four stages through job status; the legacy background route still streams background/assembly progress while the flag is off. Retry resumes cached selections and a reviewed background checkpoint; image-loading retries do not rerun AI preparation.
 
 Studio storage uses the existing private Supabase bucket:
 
@@ -99,6 +99,8 @@ See [the Studio pipeline review](docs/studio-pipeline-review.md) for findings, i
 - `POST /api/studio/background` — assembles selections, prepares the clean background, and verifies the complete reconstruction
 - `POST /api/studio/extract` — prepares and verifies one source-pixel selection
 - `POST /api/studio/image` — returns one authorized private layer image without exposing storage paths
+- `POST /api/studio/prepare` — starts or reconnects complete durable Studio preparation when enabled
+- `POST /api/jobs/start`, `/api/jobs/status`, `/api/jobs/retry`, `/api/jobs/cancel` — manage jobs through scoped job tokens
 
 ### Private storage layout
 
@@ -163,6 +165,7 @@ OPENAI_ANALYSIS_MODEL=gpt-5.6-sol
 OPENAI_IMAGE_MODEL=gpt-image-2.5-sunburst
 OPENAI_IMAGE_QUALITY=high
 ENABLE_IMAGE_VALIDATION=false
+ENABLE_DURABLE_AI_JOBS=false
 
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_secret
@@ -218,7 +221,7 @@ Tests cover the required presets, aspect classification, model-canvas normalizat
 2. Use Node.js 20 or later.
 3. Add every variable from `.env.local` under **Project Settings → Environment Variables** for Production and any Preview environments that should work. Use `SUPABASE_URL` rather than any `NEXT_PUBLIC_` name.
 4. Generate a separate strong `ADMAT_SESSION_SECRET` for production.
-5. Ensure the plan/project permits the generation route's declared maximum duration of 800 seconds; narrow admat generation can require a background pass, composition, QA, and one repair.
+5. Generation and Studio routes declare a maximum duration of 300 seconds to fit Vercel Hobby's limit. With durable jobs enabled, the browser starts a Workflow and polls its progress; no single route waits for all image edits and reviews. Narrow admat generation can require a background pass, composition, QA, and one repair.
 6. Prefer a Vercel region near the Supabase project to reduce private-asset transfer latency.
 7. Enable Vercel Deployment Protection, an access gateway, or equivalent restrictions. This MVP intentionally has no in-app authentication, and its AI endpoints should not be left publicly available.
 8. Deploy. Vercel runs `npm run build` automatically.
@@ -227,7 +230,7 @@ Source uploads go directly to Supabase using a narrow signed token, avoiding ser
 
 ## Known limitations
 
-- Generation queue concurrency is enforced per open browser workflow. Without a durable database/queue, it is not a global distributed rate limiter across every Vercel instance.
+- While durable jobs are disabled, generation concurrency is enforced only per browser. With durable jobs enabled, the server claims at most two generation jobs and one Studio job per session; Studio processes up to three selections at once.
 - Refreshing returns to the upload card. **Saved artwork** reopens an earlier upload and its analysis without uploading again. Up to 50 source records (metadata, storage references, analysis, and reviewed copy) are kept in local storage; image bytes stay in the private bucket. Hearted outputs remain in the separate saved AdMats library.
 - Saved artwork is specific to this browser profile. Clearing site storage removes its local references; removing artwork from the library does not delete the bucket object. Saved-source access lasts one year. An upload whose analysis never completed can be reopened and analyzed without uploading again.
 - Saved-library metadata lives in local storage, so it is specific to a browser profile and is not synced between devices. Its asset-scoped private access expires after one year.
@@ -248,3 +251,13 @@ AI-generated marketing assets must be reviewed before publishing. Pay special at
 - text clipping at very small or extreme aspect ratios
 
 The copy-review control and optional automated QA reduce risk, but they do not replace a final human production check.
+
+## Durable AI jobs on Vercel Hobby
+
+The durable path is opt-in and **off by default**. First run [`supabase/migrations/202609290001_ai_jobs.sql`](supabase/migrations/202609290001_ai_jobs.sql) in the existing Supabase project's SQL editor, then set `ENABLE_DURABLE_AI_JOBS=true` in the Vercel project and redeploy. Do not enable the flag before the migration. Reverting it to `false` stops new Workflow submissions; accepted jobs remain readable through the job status endpoint. No local or production migration was run while implementing this feature.
+
+`workflow` 4.8.9 is pinned. The Workflow SDK generates its own routes at build time. The short `/api/jobs/start`, `/api/jobs/status`, `/api/jobs/retry`, `/api/jobs/cancel`, and `/api/studio/prepare` routes run for at most 60 seconds. Existing direct AI routes remain available while the flag is off, with the previous 180/300-second caps. When the flag is on, old direct AI clients receive a refresh error instead of duplicating paid work. OpenAI Responses background mode retains results temporarily; completed responses and original PNGs are saved in the existing private Supabase bucket. Job metadata is retained in the new service-role-only tables so completed assets outlive Vercel Hobby's Workflow state retention.
+
+The browser remembers job references for seven days. Accepted work continues if the page closes; the Background work panel restores progress, cancellation, and reconnection to saved artwork. Keep the saved source or ad in the library to reconnect from another browser session. A submission interrupted before the response ID is confirmed is marked uncertain and never automatically resubmitted. Retrying that case deliberately starts a new paid request.
+
+The image-generation transport changes from Images edits to a forced Responses image-generation tool on the configured analysis model. Keep the image model, prompt, quality, mask, deterministic cropping, protected backgrounds, and Studio pixel verification. The provider may optimize prompts differently in this transport; review one narrow ad and one Studio output in the live environment before relying on visual equivalence. Local automated checks use mocks and do not invoke paid AI services.

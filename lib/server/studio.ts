@@ -1,3 +1,4 @@
+import { rethrowJobControl } from "@/lib/server/jobs/context";
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
@@ -7,7 +8,7 @@ import type { z } from "zod";
 import { getOpenAIConfig } from "@/lib/server/config";
 import { AppError } from "@/lib/server/errors";
 import { assertPngDimensions } from "@/lib/server/image-processing";
-import { getOpenAIClient } from "@/lib/server/openai";
+import { parseAiResponse } from "@/lib/server/jobs/ai";
 import { assertAssetToken } from "@/lib/server/asset-token";
 import { assetExists, downloadBuffer, setStorageStage, uploadBuffer } from "@/lib/server/storage";
 import { studioFailure } from "@/lib/server/studio-request";
@@ -63,6 +64,7 @@ async function studioOriginal(access: StudioAccess, document: StudioDocument) {
   const path = studioOriginalPath(access.sessionId, access.asset.requestId, document.preparationId);
   try { return await downloadBuffer(path, studioArtifactMissing("The saved artwork copy")); }
   catch (error) {
+    rethrowJobControl(error);
     if (!(error instanceof AppError) || error.code !== "STUDIO_ARTIFACT_MISSING") throw error;
     // Recover an internal copy only from this document's validated source.
     const source = await downloadBuffer(document.sourceAsset.storagePath, "ASSET_NOT_FOUND");
@@ -159,6 +161,7 @@ export async function loadStudioDocument(access: StudioAccess) {
     const activePath = await resolveGeneratedAssetPath(access.sessionId, access.asset.width, access.asset.height, access.asset.requestId);
     return activePath === document.sourceAsset.storagePath ? document : null;
   } catch (error) {
+    rethrowJobControl(error);
     if (error instanceof AppError) throw error;
     throw new AppError(
       "STUDIO_FAILED",
@@ -231,7 +234,7 @@ export async function analyzeStudioAsset(
     throw new AppError("STUDIO_FAILED", "The selected artwork dimensions do not match this Studio canvas.", 409);
   }
   const analyze = async (previousPlan?: unknown) => {
-    const response = await getOpenAIClient().responses.parse({
+    const response = await parseAiResponse({
       model: getOpenAIConfig().analysisModel, store: false,
       input: [{ role: "user", content: [
         { type: "input_text", text: buildStudioAnalyzePrompt(access.asset.width, access.asset.height, previousPlan) },
@@ -391,7 +394,8 @@ export async function prepareStudioBackground(
     logStudio("studio-reconstruction-verified", { assetId: access.asset.requestId, preparationId: document.preparationId, reconstructionError, layers: foreground.length });
     // The client keeps composition working until every PNG has decoded.
     return finalized;
-  } catch (error) { throw studioFailure(error, stage); }
+  } catch (error) {
+    rethrowJobControl(error); throw studioFailure(error, stage); }
 }
 
 export async function extractStudioLayer(access: StudioAccess, layerId: string, signal?: AbortSignal, repair = false) {
@@ -447,6 +451,7 @@ export async function extractStudioLayer(access: StudioAccess, layerId: string, 
       if (review.passed) selection = normalized.mask;
       else corrections = review.issues.join("; ");
     } catch (error) {
+    rethrowJobControl(error);
       if (!(error instanceof AppError) || error.code !== "STUDIO_FAILED" || attempt === 1) throw error;
       corrections = error.message;
     }

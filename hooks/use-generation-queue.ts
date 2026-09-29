@@ -1,10 +1,12 @@
 "use client";
+import { cancelAiJob, savedAiJobs } from "@/lib/ai-job-client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { streamGeneration } from "@/lib/api-client";
 import type { AdSize, GenerationJob, SourceAsset } from "@/lib/types";
 
 const GENERATION_CONCURRENCY = 2;
+const PENDING_GENERATIONS_KEY = "gladmat.pending-generation-contexts.v1";
 
 type GenerationContext = {
   source: SourceAsset;
@@ -109,6 +111,7 @@ export function useGenerationQueue() {
     controllersRef.current.clear();
     contextsRef.current.clear();
     setJobs([]);
+    try { localStorage.removeItem(PENDING_GENERATIONS_KEY); } catch { /* Optional persistence. */ }
   }, []);
 
   const generateAll = useCallback((sizes: AdSize[], context: GenerationContext) => {
@@ -124,6 +127,7 @@ export function useGenerationQueue() {
       ...context,
       correctedText: [...context.correctedText],
     }]));
+    try { localStorage.setItem(PENDING_GENERATIONS_KEY, JSON.stringify(nextJobs.map((job) => ({ job, context })))); } catch { /* Optional persistence. */ }
     queueRef.current = nextJobs.map((job) => ({ job, context, runVersion }));
     queueMicrotask(() => pumpRef.current());
   }, [reset]);
@@ -148,6 +152,10 @@ export function useGenerationQueue() {
       regenerationInstructions: regenerationInstructions.trim(),
     };
     contextsRef.current.set(job.requestId, context);
+    try {
+      const pending = JSON.parse(localStorage.getItem(PENDING_GENERATIONS_KEY) ?? "[]") as Array<{ job: GenerationJob; context: GenerationContext }>;
+      localStorage.setItem(PENDING_GENERATIONS_KEY, JSON.stringify([...pending.filter((item) => item.job.size.id !== job.size.id), { job, context }]));
+    } catch { /* Optional persistence. */ }
     queueRef.current.push({
       job,
       context,
@@ -160,5 +168,23 @@ export function useGenerationQueue() {
     updateJob(requestId, { previewUrl });
   }, [updateJob]);
 
-  return { jobs, generateAll, regenerate, reset, setPreviewUrl };
+  const restorePending = useCallback(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PENDING_GENERATIONS_KEY) ?? "[]") as Array<{ job: GenerationJob; context: GenerationContext }>;
+      if (!Array.isArray(saved) || !saved.length || !saved.every((item) => item.job?.requestId && item.context?.source?.sessionId)) return;
+      const runVersion = runVersionRef.current;
+      setJobs(saved.map((item) => item.job));
+      contextsRef.current = new Map(saved.map((item) => [item.job.requestId, item.context]));
+      queueRef.current = saved.map((item) => ({ ...item, runVersion }));
+      queueMicrotask(() => pumpRef.current());
+    } catch { /* Ignore invalid browser state. */ }
+  }, []);
+  const cancelPending = useCallback(async () => {
+    const ids = new Set(jobs.filter((job) => ["queued", "generating", "processing"].includes(job.status)).map((job) => `generation:${job.requestId}`));
+    await Promise.all(savedAiJobs().filter((saved) => ids.has(saved.scope)).map((saved) => cancelAiJob(saved.ticket)));
+    queueRef.current = [];
+    for (const controller of controllersRef.current.values()) controller.abort();
+    setJobs((current) => current.map((job) => ids.has(`generation:${job.requestId}`) ? { ...job, status: "error", error: "Generation was cancelled. Start a new attempt when ready." } : job));
+  }, [jobs]);
+  return { jobs, generateAll, regenerate, reset, setPreviewUrl, restorePending, cancelPending };
 }

@@ -15,7 +15,8 @@ export function getSupabaseAdmin() {
     // Use the matching fetch implementation; Node releases can bundle a
     // different dispatcher interface than the installed Undici version.
     const storageFetch: typeof undiciFetch = (input, init) =>
-      undiciFetch(input, { ...init, dispatcher });
+      undiciFetch(input, { ...init, dispatcher, signal: init?.signal
+        ? AbortSignal.any([init.signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000) });
     client = createClient(url, serviceRoleKey, {
       global: {
         fetch: storageFetch as unknown as typeof fetch,

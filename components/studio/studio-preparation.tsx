@@ -37,10 +37,12 @@ export function StudioPreparation({
   preparation,
   failure,
   onRetry,
+  onCancel,
 }: {
   preparation: StudioPreparationState;
   failure: StudioFailure | null;
   onRetry: () => void;
+  onCancel?: () => void;
 }) {
   const error = failure?.message;
   const extractFraction = preparation.totalLayers
@@ -90,6 +92,7 @@ export function StudioPreparation({
           </p>
         ) : null}
 
+        {!error && onCancel ? <button type="button" onClick={onCancel} className="mt-4 text-[12px] text-[#68778d] underline">Cancel preparation</button> : null}
         {failure?.requestId ? <p className="mt-3 break-all text-[10px] text-[#718097]">Issue reference: {failure.requestId}</p> : null}
         {error ? (
           <button type="button" onClick={onRetry} className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#1677ee] text-[13px] font-semibold text-white transition hover:bg-[#0f68d8]">

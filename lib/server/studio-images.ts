@@ -6,7 +6,7 @@ import { chooseGenerationCanvas } from "@/lib/dimensions";
 import { imageModelSupportsInputFidelity, MAX_IMAGE_PROMPT_CHARS } from "@/lib/image-models";
 import { getOpenAIConfig } from "@/lib/server/config";
 import { AppError } from "@/lib/server/errors";
-import { getOpenAIClient } from "@/lib/server/openai";
+import { editAiImage } from "@/lib/server/jobs/ai";
 
 export type StudioImageSource = { buffer: Buffer; filename: string };
 
@@ -54,7 +54,7 @@ export async function editStudioImage(
   const files = await Promise.all(sources.map(async (source) => toFile(
     await frameStudioImage(source.buffer, width, height), source.filename, { type: "image/png" },
   )));
-  const response = await getOpenAIClient().images.edit({
+  const response = await editAiImage({
     model: config.imageModel, image: files.length > 1 ? files : files[0],
     prompt, size: canvas.size, quality: config.imageQuality,
     output_format: "png", background, n: 1, user: sessionId,
