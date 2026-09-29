@@ -39,9 +39,14 @@ async function storageRequest<T>(
   } catch (error) {
     if (error instanceof AppError) throw error;
     const storageError = error as {
+      status?: number;
       statusCode?: string;
+      code?: string;
       originalError?: { cause?: { code?: string } };
     } | null;
+    const storageStatus = Number(storageError?.statusCode ?? storageError?.status);
+    const storageCode = storageError?.code;
+    const networkCode = storageError?.originalError?.cause?.code;
     logServerError(error, {
       stage: "storage",
       operation,
@@ -49,14 +54,26 @@ async function storageRequest<T>(
       ...storageContext.getStore(),
       ...context,
       storageStatusCode: storageError?.statusCode,
-      networkCode: storageError?.originalError?.cause?.code,
+      storageCode,
+      networkCode,
     });
-    const status = (error as { status?: number } | null)?.status;
-    if (status === 401 || status === 403) {
+    const details = {
+      ...(Number.isFinite(storageStatus) ? { storageStatus } : {}),
+      ...(storageCode ? { storageCode } : {}),
+    };
+    if (storageStatus === 401 || storageStatus === 403) {
       throw new AppError("STORAGE_FAILED", "Private storage rejected the server credentials. Check the storage configuration on the server.", 503, false,
-        { recovery: "check-configuration" });
+        { recovery: "check-configuration", ...details });
     }
-    throw new AppError("STORAGE_FAILED", message, 502, true);
+    if (storageStatus === 404) {
+      throw new AppError("STORAGE_FAILED", "The configured private storage bucket was not found. Check SUPABASE_URL and SUPABASE_STORAGE_BUCKET.", 503, false,
+        { recovery: "check-configuration", ...details });
+    }
+    if (networkCode || error instanceof TypeError || (error as { name?: string } | null)?.name === "StorageUnknownError") {
+      throw new AppError("STORAGE_FAILED", "The server could not reach private storage. Retry shortly; if this continues, check the Supabase project status.", 503, true,
+        details);
+    }
+    throw new AppError("STORAGE_FAILED", message, 502, true, details);
   }
 }
 
